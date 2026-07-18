@@ -252,11 +252,11 @@ async function sendTelegram(env, chatId, text, replyMarkup = null) {
   }
 }
 
-async function sendNativeChecklist(env, businessConnectionId, chatId, replyToMessageId, targetDate) {
+async function sendNativeChecklist(env, businessConnectionId, chatId, targetDate) {
+  const targetChatId = env.NATIVE_CHECKLIST_CHAT_ID || env.TELEGRAM_BOT_USERNAME || "@Ozish8haftabot";
   const body = {
     business_connection_id: businessConnectionId,
-    chat_id: chatId,
-    message_id: replyToMessageId,
+    chat_id: targetChatId,
     checklist: buildNativeChecklist(targetDate, env),
   };
 
@@ -380,7 +380,7 @@ export default {
 
     if ((wantsChecklist(message.text) || wantsToday(message.text)) && businessConnectionId) {
       try {
-        await sendNativeChecklist(env, businessConnectionId, message.chat.id, message.message_id, tashkentDate(0));
+        await sendNativeChecklist(env, businessConnectionId, message.chat.id, tashkentDate(0));
       } catch (error) {
         await sendTelegram(env, message.chat.id, `Native checklist yuborilmadi:\n<code>${escapeHtml(error.message)}</code>`);
       }

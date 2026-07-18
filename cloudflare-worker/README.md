@@ -6,6 +6,7 @@ Bu Worker Telegram botga yozilganda darhol javob berish uchun kerak.
 
 - `TELEGRAM_BOT_TOKEN`
 - `TELEGRAM_CHAT_ID`
+- `NATIVE_CHECKLIST_CHAT_ID`
 - `FITNESS_START_DATE`
 
 `FITNESS_START_DATE` qiymati: `2026-07-19`
@@ -33,6 +34,7 @@ Keyin Worker **Settings** -> **Variables** ichida secretlar qo'shiladi:
 Oddiy variable:
 
 - `FITNESS_START_DATE=2026-07-19`
+- `NATIVE_CHECKLIST_CHAT_ID=@Ozish8haftabot`
 
 ### GitHub repo orqali deploy
 
@@ -89,5 +91,7 @@ To'g'ri oqim:
 Rasmiy Bot API bo'yicha:
 
 - `Update` ichida `business_connection` va `business_message` maydonlari bor.
-- `sendChecklist` uchun `business_connection_id`, `chat_id`, `message_id`, `checklist` kerak.
+- `sendChecklist` uchun `business_connection_id`, `chat_id`, `checklist` kerak.
 - `InputChecklist` 1-30 ta task qabul qiladi.
+
+Eslatma: Business account o'ziga xabar yubora olmaydi. Shuning uchun native checklist target chat sifatida `@Ozish8haftabot` ga yuboriladi.
