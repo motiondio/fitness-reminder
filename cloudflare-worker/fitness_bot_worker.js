@@ -320,11 +320,20 @@ function statusMessage(env, chatId) {
     `BUSINESS_CONNECTION_ID: <b>${env.BUSINESS_CONNECTION_ID ? "bor" : "yo'q"}</b>`,
     `NATIVE_CHECKLIST_CHAT_ID: <code>${escapeHtml(env.NATIVE_CHECKLIST_CHAT_ID || "yo'q")}</code>`,
     `TELEGRAM_ALLOWED_CHAT_IDS: <code>${escapeHtml(env.TELEGRAM_ALLOWED_CHAT_IDS || "yo'q")}</code>`,
+    `TELEGRAM_TOPIC_ID: <code>${escapeHtml(env.TELEGRAM_TOPIC_ID || "yo'q")}</code>`,
     "",
     env.CHECKLIST_STATE
       ? "Checklist holati /today qayta chaqirilganda saqlanishi kerak."
       : "Cloudflare KV binding qo'shilmagan: CHECKLIST_STATE nomi bilan ulang.",
   ].join("\n");
+}
+
+function threadFromMessage(message, env = {}) {
+  return message?.message_thread_id || Number(env.TELEGRAM_TOPIC_ID || 0) || null;
+}
+
+function threadOptions(threadId = null) {
+  return threadId ? { message_thread_id: Number(threadId) } : {};
 }
 
 function workoutKeyboard() {
@@ -342,8 +351,8 @@ function workoutKeyboard() {
   };
 }
 
-async function sendTelegram(env, chatId, text, replyMarkup = null) {
-  const body = { chat_id: chatId, text, parse_mode: "HTML" };
+async function sendTelegram(env, chatId, text, replyMarkup = null, options = {}) {
+  const body = { chat_id: chatId, text, parse_mode: "HTML", ...options };
   if (replyMarkup) body.reply_markup = replyMarkup;
 
   const response = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
@@ -356,7 +365,7 @@ async function sendTelegram(env, chatId, text, replyMarkup = null) {
   }
 }
 
-async function editTelegramMessage(env, chatId, messageId, text, replyMarkup = null) {
+async function editTelegramMessage(env, chatId, messageId, text, replyMarkup = null, options = {}) {
   const body = { chat_id: chatId, message_id: messageId, text, parse_mode: "HTML" };
   if (replyMarkup) body.reply_markup = replyMarkup;
 
@@ -389,12 +398,12 @@ async function sendNativeChecklist(env, businessConnectionId, chatId, targetDate
   }
 }
 
-async function sendInlineChecklist(env, chatId, targetDate, notice = null) {
+async function sendInlineChecklist(env, chatId, targetDate, notice = null, options = {}) {
   if (notice) {
-    await sendTelegram(env, chatId, notice);
+    await sendTelegram(env, chatId, notice, null, options);
   }
   const mask = await getChecklistMask(env, chatId, targetDate);
-  await sendTelegram(env, chatId, buildInlineChecklistText(targetDate, env, mask), inlineChecklistKeyboard(targetDate, env, mask));
+  await sendTelegram(env, chatId, buildInlineChecklistText(targetDate, env, mask), inlineChecklistKeyboard(targetDate, env, mask), options);
 }
 
 function wantsChecklist(text) {
@@ -492,7 +501,7 @@ export default {
         "Cloudflare Worker secret/variable sifatida BUSINESS_CONNECTION_ID qo'shing.",
       ].join("\n");
       if (env.TELEGRAM_CHAT_ID) {
-        await sendTelegram(env, env.TELEGRAM_CHAT_ID, text);
+        await sendTelegram(env, env.TELEGRAM_CHAT_ID, text, null, threadOptions(env.TELEGRAM_TOPIC_ID));
       }
       return new Response("OK");
     }
@@ -500,6 +509,7 @@ export default {
     const callback = update.callback_query;
     if (callback && callback.message && callback.data) {
       const chatId = callback.message.chat.id;
+      const threadId = threadFromMessage(callback.message, env);
       if (!isAllowedChat(env, chatId)) {
         await answerCallback(env, callback.id, "Bu bot shaxsiy foydalanish uchun sozlangan.");
         return new Response("OK");
@@ -518,7 +528,8 @@ export default {
           chatId,
           callback.message.message_id,
           buildInlineChecklistText(targetDate, env, nextMask),
-          inlineChecklistKeyboard(targetDate, env, nextMask)
+          inlineChecklistKeyboard(targetDate, env, nextMask),
+          threadOptions(threadId)
         );
         await answerCallback(env, callback.id, "Checklist yangilandi.");
       } else if (callback.data.startsWith("rst:")) {
@@ -530,7 +541,8 @@ export default {
           chatId,
           callback.message.message_id,
           buildInlineChecklistText(targetDate, env, 0),
-          inlineChecklistKeyboard(targetDate, env, 0)
+          inlineChecklistKeyboard(targetDate, env, 0),
+          threadOptions(threadId)
         );
         await answerCallback(env, callback.id, "Checklist tozalandi.");
       } else if (callback.data.startsWith("all:")) {
@@ -543,7 +555,8 @@ export default {
           chatId,
           callback.message.message_id,
           buildInlineChecklistText(targetDate, env, nextMask),
-          inlineChecklistKeyboard(targetDate, env, nextMask)
+          inlineChecklistKeyboard(targetDate, env, nextMask),
+          threadOptions(threadId)
         );
         await answerCallback(env, callback.id, "Hammasi belgilandi.");
       } else if (callback.data.startsWith("toggle:")) {
@@ -558,22 +571,23 @@ export default {
           chatId,
           callback.message.message_id,
           buildInlineChecklistText(tashkentDate(0), env, nextMask),
-          inlineChecklistKeyboard(tashkentDate(0), env, nextMask)
+          inlineChecklistKeyboard(tashkentDate(0), env, nextMask),
+          threadOptions(threadId)
         );
         await answerCallback(env, callback.id, "Checklist yangilandi.");
       } else if (callback.data === "reset_today") {
         await setChecklistMask(env, chatId, tashkentDate(0), 0);
-        await sendInlineChecklist(env, chatId, tashkentDate(0), "Bugungi checklist tozalandi.");
+        await sendInlineChecklist(env, chatId, tashkentDate(0), "Bugungi checklist tozalandi.", threadOptions(threadId));
         await answerCallback(env, callback.id, "Checklist tozalandi.");
       } else if (callback.data === "tomorrow") {
         await answerCallback(env, callback.id, "Ertangi reja yuborildi.");
-        await sendInlineChecklist(env, chatId, tashkentDate(1));
+        await sendInlineChecklist(env, chatId, tashkentDate(1), null, threadOptions(threadId));
       } else if (callback.data === "help") {
         await answerCallback(env, callback.id, "Yordam yuborildi.");
-        await sendTelegram(env, chatId, helpMessage(), workoutKeyboard());
+        await sendTelegram(env, chatId, helpMessage(), workoutKeyboard(), threadOptions(threadId));
       } else {
         await answerCallback(env, callback.id, "Bugungi reja yuborildi.");
-        await sendInlineChecklist(env, chatId, tashkentDate(0));
+        await sendInlineChecklist(env, chatId, tashkentDate(0), null, threadOptions(threadId));
       }
       return new Response("OK");
     }
@@ -586,6 +600,27 @@ export default {
     const isBusinessMessage = Boolean(update.business_message);
     const businessConnectionId = message.business_connection_id || env.BUSINESS_CONNECTION_ID;
     const normalizedText = message.text.toLowerCase().trim();
+    const threadId = threadFromMessage(message, env);
+
+    if (normalizedText === "/threadid" || normalizedText.startsWith("/threadid@")) {
+      await sendTelegram(
+        env,
+        message.chat.id,
+        [
+          "Chat ID:",
+          `<code>${escapeHtml(message.chat.id)}</code>`,
+          "",
+          `Chat type: <code>${escapeHtml(message.chat.type || "unknown")}</code>`,
+          "",
+          "Topic / thread ID:",
+          `<code>${escapeHtml(message.message_thread_id || "general")}</code>`,
+        ].join("\n")
+        ,
+        null,
+        threadOptions(threadId)
+      );
+      return new Response("OK");
+    }
 
     if (normalizedText === "/chatid" || normalizedText.startsWith("/chatid@")) {
       await sendTelegram(
@@ -596,7 +631,12 @@ export default {
           `<code>${escapeHtml(message.chat.id)}</code>`,
           "",
           `Chat type: <code>${escapeHtml(message.chat.type || "unknown")}</code>`,
-        ].join("\n")
+          "",
+          "Topic / thread ID:",
+          `<code>${escapeHtml(message.message_thread_id || "general")}</code>`,
+        ].join("\n"),
+        null,
+        threadOptions(threadId)
       );
       return new Response("OK");
     }
@@ -607,23 +647,23 @@ export default {
     }
 
     if (wantsStatus(message.text)) {
-      await sendTelegram(env, message.chat.id, statusMessage(env, message.chat.id), workoutKeyboard());
+      await sendTelegram(env, message.chat.id, statusMessage(env, message.chat.id), workoutKeyboard(), threadOptions(threadId));
       return new Response("OK");
     }
 
     if (normalizedText === "/start" || normalizedText === "/help" || normalizedText.includes("yordam")) {
-      await sendTelegram(env, message.chat.id, helpMessage(), workoutKeyboard());
+      await sendTelegram(env, message.chat.id, helpMessage(), workoutKeyboard(), threadOptions(threadId));
       return new Response("OK");
     }
 
     if (wantsReset(message.text)) {
       await setChecklistMask(env, message.chat.id, tashkentDate(0), 0);
-      await sendInlineChecklist(env, message.chat.id, tashkentDate(0), "Bugungi checklist tozalandi.");
+      await sendInlineChecklist(env, message.chat.id, tashkentDate(0), "Bugungi checklist tozalandi.", threadOptions(threadId));
       return new Response("OK");
     }
 
     if (wantsTomorrow(message.text)) {
-      await sendInlineChecklist(env, message.chat.id, tashkentDate(1));
+      await sendInlineChecklist(env, message.chat.id, tashkentDate(1), null, threadOptions(threadId));
       return new Response("OK");
     }
 
@@ -637,17 +677,17 @@ export default {
           "",
           `<code>${escapeHtml(error.message)}</code>`,
         ].join("\n");
-        await sendInlineChecklist(env, message.chat.id, tashkentDate(0), notice);
+        await sendInlineChecklist(env, message.chat.id, tashkentDate(0), notice, threadOptions(threadId));
       }
       return new Response("OK");
     }
 
     if (wantsChecklist(message.text) || wantsToday(message.text)) {
-      await sendInlineChecklist(env, message.chat.id, tashkentDate(0));
+      await sendInlineChecklist(env, message.chat.id, tashkentDate(0), null, threadOptions(threadId));
       return new Response("OK");
     }
 
-    await sendTelegram(env, message.chat.id, responseFor(message.text, env), workoutKeyboard());
+    await sendTelegram(env, message.chat.id, responseFor(message.text, env), workoutKeyboard(), threadOptions(threadId));
     return new Response("OK");
   },
 };

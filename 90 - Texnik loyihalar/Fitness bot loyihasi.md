@@ -28,6 +28,7 @@ Bog'liq notelar:
 - Diagnostika: `/status`
 - `/tomorrow` ham inline checklist yuboradi va ertangi sana uchun alohida state saqlaydi
 - Checklist tugmalari: task toggle, `✅ Hammasi`, `♻️ Reset`
+- Supergroup topic support: `/threadid`, `TELEGRAM_TOPIC_ID`
 
 ## Keyingi bosqichlar
 

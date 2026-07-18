@@ -8,6 +8,7 @@ Bu Worker Telegram botga yozilganda darhol javob berish uchun kerak.
 - `TELEGRAM_CHAT_ID`
 - `NATIVE_CHECKLIST_CHAT_ID`
 - `TELEGRAM_ALLOWED_CHAT_IDS`
+- `TELEGRAM_TOPIC_ID`
 - `FITNESS_START_DATE`
 
 `FITNESS_START_DATE` qiymati: `2026-07-19`
@@ -37,6 +38,7 @@ Oddiy variable:
 - `FITNESS_START_DATE=2026-07-19`
 - `NATIVE_CHECKLIST_CHAT_ID=8967190826`
 - `TELEGRAM_ALLOWED_CHAT_IDS=8084782034,-1002781399618`
+- `TELEGRAM_TOPIC_ID=topic_id`
 
 ### GitHub repo orqali deploy
 
@@ -69,6 +71,7 @@ curl "https://api.telegram.org/botBOT_TOKEN/getWebhookInfo"
 - `checklist`
 - `/reset`
 - `/chatid`
+- `/threadid`
 - `/status`
 - `/tomorrow`
 - `ertaga`
@@ -127,6 +130,25 @@ Shundan keyin bot har chat va har sana uchun checklist holatini 90 kun saqlaydi.
 `/reset` bugungi checklistni tozalaydi.
 `/tomorrow` ertangi checklistni alohida holat bilan yuboradi.
 Checklist tugmalarida `✅ Hammasi` va `♻️ Reset` bor.
+
+## Supergroup topic
+
+Telegram supergroup ichidagi aniq topic'ga yozish uchun `message_thread_id` kerak.
+
+1. Kerakli topic ichiga kiring.
+2. Shu topic ichida yozing:
+
+```text
+/threadid
+```
+
+3. Bot qaytargan `Topic / thread ID` qiymatini Cloudflare Worker variable sifatida qo'shing:
+
+```text
+TELEGRAM_TOPIC_ID=thread_id
+```
+
+Shundan keyin botning yangi xabarlari shu topic ichiga yuboriladi. General topic uchun odatda thread ID bo'lmaydi.
 
 Tekshirish:
 
