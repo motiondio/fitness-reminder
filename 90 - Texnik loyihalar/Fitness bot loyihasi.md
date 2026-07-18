@@ -26,6 +26,7 @@ Bog'liq notelar:
 
 - Business / Secretary Mode orqali native Telegram checklistni yakunlash
 - `BUSINESS_CONNECTION_ID` ni Cloudflare Worker variable sifatida qo'shish
+- Private group ID ni `/chatid` orqali topib, `NATIVE_CHECKLIST_CHAT_ID` ga yozish
 - AI'siz aqlli komandalarni kengaytirish
 - OpenAI API yoki bepul alternativani keyinroq ulash
 - Progress loglarini [[8 haftalik kardio reja]] bilan bog'lash

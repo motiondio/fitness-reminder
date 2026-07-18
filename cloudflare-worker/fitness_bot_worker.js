@@ -218,6 +218,7 @@ function helpMessage() {
     "<b>Yozishingiz mumkin:</b>",
     "• /today yoki bugun - bugungi reja",
     "• /checklist yoki checklist - native checklist",
+    "• /chatid - joriy chat ID",
     "• /tomorrow yoki ertaga - ertangi reja",
     "• /help - buyruqlar",
   ].join("\n");
@@ -372,6 +373,21 @@ export default {
 
     const isBusinessMessage = Boolean(update.business_message);
     const businessConnectionId = message.business_connection_id || env.BUSINESS_CONNECTION_ID;
+    const normalizedText = message.text.toLowerCase().trim();
+
+    if (normalizedText === "/chatid" || normalizedText.startsWith("/chatid@")) {
+      await sendTelegram(
+        env,
+        message.chat.id,
+        [
+          "Chat ID:",
+          `<code>${escapeHtml(message.chat.id)}</code>`,
+          "",
+          `Chat type: <code>${escapeHtml(message.chat.type || "unknown")}</code>`,
+        ].join("\n")
+      );
+      return new Response("OK");
+    }
 
     if (!isBusinessMessage && env.TELEGRAM_CHAT_ID && String(message.chat.id) !== String(env.TELEGRAM_CHAT_ID)) {
       await sendTelegram(env, message.chat.id, "Bu bot shaxsiy foydalanish uchun sozlangan.");

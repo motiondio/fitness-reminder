@@ -65,6 +65,7 @@ curl "https://api.telegram.org/botBOT_TOKEN/getWebhookInfo"
 - `bugun nima qilishim kerak`
 - `/checklist`
 - `checklist`
+- `/chatid`
 - `/tomorrow`
 - `ertaga`
 - `/help`
@@ -95,3 +96,11 @@ Rasmiy Bot API bo'yicha:
 - `InputChecklist` 1-30 ta task qabul qiladi.
 
 Eslatma: Business account o'ziga xabar yubora olmaydi. Shuning uchun native checklist target chat sifatida botning numeric ID qiymatiga yuboriladi: `8967190826`.
+
+Private group test:
+
+1. Telegram'da yangi private group yarating.
+2. @Ozish8haftabot ni group'ga qo'shing.
+3. Group ichida `/chatid` yozing.
+4. Bot qaytargan negative chat ID qiymatini Cloudflare'da `NATIVE_CHECKLIST_CHAT_ID` ga yozing.
+5. Botga `/today` yozib native checklistni test qiling.
