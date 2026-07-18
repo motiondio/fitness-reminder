@@ -118,63 +118,97 @@ function parseDate(value) {
   return new Date(year, month - 1, day);
 }
 
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
 function buildWorkoutMessage(targetDate, env) {
   const startDate = parseDate(env.FITNESS_START_DATE || "2026-07-19");
   const dayIndex = Math.floor((dateOnly(targetDate) - dateOnly(startDate)) / 86400000);
 
   if (dayIndex < 0) {
-    return `Reja hali boshlanmagan. Start sanasi: ${formatDate(startDate)}`;
+    return `⏳ <b>Reja hali boshlanmagan</b>\n\nStart sanasi: <code>${formatDate(startDate)}</code>`;
   }
   if (dayIndex >= 56) {
-    return "8 haftalik reja tugadi. Bugun progressni ko'rib chiqish va yangi bosqichni tanlash kuni.";
+    return "🏁 <b>8 haftalik reja tugadi</b>\n\nBugun progressni ko'rib chiqish va yangi bosqichni tanlash kuni.";
   }
 
   const weekIndex = Math.floor(dayIndex / 7);
   const dayInWeek = dayIndex % 7;
 
   return [
-    `Bugun: ${formatDate(targetDate)}`,
-    `${weekIndex + 1}-hafta, ${dayInWeek + 1}-kun`,
+    `🔥 <b>${weekIndex + 1}-hafta, ${dayInWeek + 1}-kun</b>`,
+    `<code>${formatDate(targetDate)}</code>`,
     "",
-    `Reja: ${PLAN[weekIndex][dayInWeek]}`,
-    `Treadmill: ${TREADMILL_SETTINGS[weekIndex]}`,
-    `Zina: ${STAIR_SETTINGS[weekIndex]}`,
+    `🎯 <b>Bugungi reja</b>`,
+    `• ${escapeHtml(PLAN[weekIndex][dayInWeek])}`,
+    `• Treadmill: <b>${escapeHtml(TREADMILL_SETTINGS[weekIndex])}</b>`,
+    `• Zina: <b>${escapeHtml(STAIR_SETTINGS[weekIndex])}</b>`,
     "",
-    "Tartib:",
-    "- Warm-up: 5 daqiqa",
-    "- Asosiy mashg'ulot",
-    "- Cool-down: 3-5 daqiqa",
-    "- Cho'zilish",
+    "📌 <b>Tartib</b>",
+    "☐ Warm-up: 5 daqiqa",
+    "☐ Asosiy mashg'ulot",
+    "☐ Cool-down: 3-5 daqiqa",
+    "☐ Cho'zilish",
     "",
-    "Checklist:",
-    "- 3 litr suv",
-    "- Oqsilga boy ovqat",
-    "- 8-10 ming qadam",
-    "- 7.5+ soat uyqu",
-    "- Shirin ichimlik yo'q",
+    "✅ <b>Checklist</b>",
+    "☐ 3 litr suv",
+    "☐ Oqsilga boy ovqat",
+    "☐ 8-10 ming qadam",
+    "☐ 7.5+ soat uyqu",
+    "☐ Shirin ichimlik yo'q",
   ].join("\n");
 }
 
 function helpMessage() {
   return [
-    "Men 8 haftalik kardio reja botiman.",
+    "🤖 <b>Men 8 haftalik kardio reja botiman.</b>",
     "",
-    "Yozishingiz mumkin:",
-    "/today yoki bugun - bugungi reja",
-    "/tomorrow yoki ertaga - ertangi reja",
-    "/help - buyruqlar",
+    "<b>Yozishingiz mumkin:</b>",
+    "• /today yoki bugun - bugungi reja",
+    "• /tomorrow yoki ertaga - ertangi reja",
+    "• /help - buyruqlar",
   ].join("\n");
 }
 
-async function sendTelegram(env, chatId, text) {
+function workoutKeyboard() {
+  return {
+    inline_keyboard: [
+      [
+        { text: "✅ Bajarildi", callback_data: "done" },
+        { text: "📋 Bugun", callback_data: "today" },
+      ],
+      [
+        { text: "➡️ Ertaga", callback_data: "tomorrow" },
+        { text: "ℹ️ Yordam", callback_data: "help" },
+      ],
+    ],
+  };
+}
+
+async function sendTelegram(env, chatId, text, replyMarkup = null) {
+  const body = { chat_id: chatId, text, parse_mode: "HTML" };
+  if (replyMarkup) body.reply_markup = replyMarkup;
+
   const response = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ chat_id: chatId, text }),
+    body: JSON.stringify(body),
   });
   if (!response.ok) {
     throw new Error(`Telegram API failed: ${response.status}`);
   }
+}
+
+async function answerCallback(env, callbackQueryId, text) {
+  await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ callback_query_id: callbackQueryId, text }),
+  });
 }
 
 function responseFor(text, env) {
@@ -193,7 +227,7 @@ function responseFor(text, env) {
   ) {
     return buildWorkoutMessage(tashkentDate(0), env);
   }
-  return "Tushundim. Bugungi reja kerak bo'lsa, /today yoki \"bugun nima qilishim kerak\" deb yozing.";
+  return "Tushundim. Bugungi reja kerak bo'lsa, <b>/today</b> yoki <b>bugun nima qilishim kerak</b> deb yozing.";
 }
 
 export default {
@@ -203,6 +237,29 @@ export default {
     }
 
     const update = await request.json();
+    const callback = update.callback_query;
+    if (callback && callback.message && callback.data) {
+      const chatId = callback.message.chat.id;
+      if (env.TELEGRAM_CHAT_ID && String(chatId) !== String(env.TELEGRAM_CHAT_ID)) {
+        await answerCallback(env, callback.id, "Bu bot shaxsiy foydalanish uchun sozlangan.");
+        return new Response("OK");
+      }
+
+      if (callback.data === "done") {
+        await answerCallback(env, callback.id, "Qabul qilindi. Bugungi odat saqlandi.");
+      } else if (callback.data === "tomorrow") {
+        await answerCallback(env, callback.id, "Ertangi reja yuborildi.");
+        await sendTelegram(env, chatId, buildWorkoutMessage(tashkentDate(1), env), workoutKeyboard());
+      } else if (callback.data === "help") {
+        await answerCallback(env, callback.id, "Yordam yuborildi.");
+        await sendTelegram(env, chatId, helpMessage(), workoutKeyboard());
+      } else {
+        await answerCallback(env, callback.id, "Bugungi reja yuborildi.");
+        await sendTelegram(env, chatId, buildWorkoutMessage(tashkentDate(0), env), workoutKeyboard());
+      }
+      return new Response("OK");
+    }
+
     const message = update.message;
     if (!message || !message.chat || !message.text) {
       return new Response("OK");
@@ -213,7 +270,7 @@ export default {
       return new Response("OK");
     }
 
-    await sendTelegram(env, message.chat.id, responseFor(message.text, env));
+    await sendTelegram(env, message.chat.id, responseFor(message.text, env), workoutKeyboard());
     return new Response("OK");
   },
 };
