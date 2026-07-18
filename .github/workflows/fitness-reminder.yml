@@ -1,0 +1,22 @@
+name: Fitness reminder
+
+on:
+  schedule:
+    # 05:00 Asia/Tashkent = 00:00 UTC
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+
+jobs:
+  send-reminder:
+    runs-on: ubuntu-latest
+    env:
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      FITNESS_START_DATE: "2026-07-19"
+      TZ: Asia/Tashkent
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Send Telegram reminder
+        run: python3 tools/fitness_reminder.py
