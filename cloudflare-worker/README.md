@@ -14,6 +14,13 @@ Bu Worker Telegram botga yozilganda darhol javob berish uchun kerak.
 
 Cloudflare'da Worker yarating va `fitness_bot_worker.js` ichidagi kodni joylang.
 
+GitHub repo orqali deploy qilinsa:
+
+```text
+Build command: npm install
+Deploy command: npm run deploy
+```
+
 Keyin Telegram webhook ulash kerak:
 
 ```bash

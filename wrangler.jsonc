@@ -1,0 +1,14 @@
+{
+  "name": "fitness-reminder",
+  "main": "cloudflare-worker/fitness_bot_worker.js",
+  "compatibility_date": "2026-07-18",
+  "vars": {
+    "FITNESS_START_DATE": "2026-07-19"
+  },
+  "secrets": {
+    "required": [
+      "TELEGRAM_BOT_TOKEN",
+      "TELEGRAM_CHAT_ID"
+    ]
+  }
+}
