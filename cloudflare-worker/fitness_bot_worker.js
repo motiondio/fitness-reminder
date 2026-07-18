@@ -253,7 +253,7 @@ async function sendTelegram(env, chatId, text, replyMarkup = null) {
 }
 
 async function sendNativeChecklist(env, businessConnectionId, chatId, targetDate) {
-  const targetChatId = env.NATIVE_CHECKLIST_CHAT_ID || env.TELEGRAM_BOT_USERNAME || "@Ozish8haftabot";
+  const targetChatId = Number(env.NATIVE_CHECKLIST_CHAT_ID || env.TELEGRAM_BOT_ID || 8967190826);
   const body = {
     business_connection_id: businessConnectionId,
     chat_id: targetChatId,

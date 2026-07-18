@@ -34,7 +34,7 @@ Keyin Worker **Settings** -> **Variables** ichida secretlar qo'shiladi:
 Oddiy variable:
 
 - `FITNESS_START_DATE=2026-07-19`
-- `NATIVE_CHECKLIST_CHAT_ID=@Ozish8haftabot`
+- `NATIVE_CHECKLIST_CHAT_ID=8967190826`
 
 ### GitHub repo orqali deploy
 
@@ -94,4 +94,4 @@ Rasmiy Bot API bo'yicha:
 - `sendChecklist` uchun `business_connection_id`, `chat_id`, `checklist` kerak.
 - `InputChecklist` 1-30 ta task qabul qiladi.
 
-Eslatma: Business account o'ziga xabar yubora olmaydi. Shuning uchun native checklist target chat sifatida `@Ozish8haftabot` ga yuboriladi.
+Eslatma: Business account o'ziga xabar yubora olmaydi. Shuning uchun native checklist target chat sifatida botning numeric ID qiymatiga yuboriladi: `8967190826`.

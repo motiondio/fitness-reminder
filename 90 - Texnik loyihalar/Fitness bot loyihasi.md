@@ -20,7 +20,7 @@ Bog'liq notelar:
 - Daily reminder: GitHub Actions orqali 05:00 Asia/Tashkent
 - Business / Secretary Mode: ulangan
 - Native checklist: `BUSINESS_CONNECTION_ID` Cloudflare variable sifatida qo'shilgandan keyin `/today` va `/checklist` uchun ishlaydi
-- Native checklist target: `@Ozish8haftabot`
+- Native checklist target: `8967190826`
 
 ## Keyingi bosqichlar
 
