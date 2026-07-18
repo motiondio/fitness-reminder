@@ -163,12 +163,61 @@ function buildWorkoutMessage(targetDate, env) {
   ].join("\n");
 }
 
+function workoutPlanFor(targetDate, env) {
+  const startDate = parseDate(env.FITNESS_START_DATE || "2026-07-19");
+  const dayIndex = Math.floor((dateOnly(targetDate) - dateOnly(startDate)) / 86400000);
+  if (dayIndex < 0 || dayIndex >= 56) {
+    return null;
+  }
+
+  const weekIndex = Math.floor(dayIndex / 7);
+  const dayInWeek = dayIndex % 7;
+  return {
+    title: `${weekIndex + 1}-hafta, ${dayInWeek + 1}-kun`,
+    workout: PLAN[weekIndex][dayInWeek],
+    treadmill: TREADMILL_SETTINGS[weekIndex],
+    stair: STAIR_SETTINGS[weekIndex],
+  };
+}
+
+function buildNativeChecklist(targetDate, env) {
+  const plan = workoutPlanFor(targetDate, env);
+  if (!plan) {
+    return {
+      title: "8 haftalik reja",
+      tasks: [{ id: 1, text: "Progressni ko'rib chiqish" }],
+      others_can_add_tasks: false,
+      others_can_mark_tasks_as_done: true,
+    };
+  }
+
+  return {
+    title: plan.title,
+    tasks: [
+      { id: 1, text: "Warm-up: 5 daqiqa" },
+      { id: 2, text: plan.workout.slice(0, 100) },
+      { id: 3, text: `Treadmill: ${plan.treadmill}`.slice(0, 100) },
+      { id: 4, text: `Zina: ${plan.stair}`.slice(0, 100) },
+      { id: 5, text: "Cool-down: 3-5 daqiqa" },
+      { id: 6, text: "Cho'zilish" },
+      { id: 7, text: "3 litr suv" },
+      { id: 8, text: "Oqsilga boy ovqat" },
+      { id: 9, text: "8-10 ming qadam" },
+      { id: 10, text: "7.5+ soat uyqu" },
+      { id: 11, text: "Shirin ichimlik yo'q" },
+    ],
+    others_can_add_tasks: false,
+    others_can_mark_tasks_as_done: true,
+  };
+}
+
 function helpMessage() {
   return [
     "🤖 <b>Men 8 haftalik kardio reja botiman.</b>",
     "",
     "<b>Yozishingiz mumkin:</b>",
     "• /today yoki bugun - bugungi reja",
+    "• /checklist yoki checklist - native checklist",
     "• /tomorrow yoki ertaga - ertangi reja",
     "• /help - buyruqlar",
   ].join("\n");
@@ -201,6 +250,35 @@ async function sendTelegram(env, chatId, text, replyMarkup = null) {
   if (!response.ok) {
     throw new Error(`Telegram API failed: ${response.status}`);
   }
+}
+
+async function sendNativeChecklist(env, businessConnectionId, chatId, replyToMessageId, targetDate) {
+  const body = {
+    business_connection_id: businessConnectionId,
+    chat_id: chatId,
+    message_id: replyToMessageId,
+    checklist: buildNativeChecklist(targetDate, env),
+  };
+
+  const response = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendChecklist`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Telegram sendChecklist failed: ${response.status} ${errorText}`);
+  }
+}
+
+function wantsChecklist(text) {
+  const normalized = text.toLowerCase().trim();
+  return (
+    normalized === "/checklist" ||
+    normalized.includes("checklist") ||
+    normalized.includes("cheklist") ||
+    normalized.includes("native")
+  );
 }
 
 async function answerCallback(env, callbackQueryId, text) {
@@ -237,6 +315,23 @@ export default {
     }
 
     const update = await request.json();
+    if (update.business_connection) {
+      const connection = update.business_connection;
+      const status = connection.is_enabled ? "ulandi" : "uzildi";
+      const text = [
+        `Business connection ${status}.`,
+        "",
+        `BUSINESS_CONNECTION_ID:`,
+        `<code>${escapeHtml(connection.id)}</code>`,
+        "",
+        "Cloudflare Worker secret/variable sifatida BUSINESS_CONNECTION_ID qo'shing.",
+      ].join("\n");
+      if (env.TELEGRAM_CHAT_ID) {
+        await sendTelegram(env, env.TELEGRAM_CHAT_ID, text);
+      }
+      return new Response("OK");
+    }
+
     const callback = update.callback_query;
     if (callback && callback.message && callback.data) {
       const chatId = callback.message.chat.id;
@@ -260,13 +355,25 @@ export default {
       return new Response("OK");
     }
 
-    const message = update.message;
+    const message = update.business_message || update.message;
     if (!message || !message.chat || !message.text) {
       return new Response("OK");
     }
 
-    if (env.TELEGRAM_CHAT_ID && String(message.chat.id) !== String(env.TELEGRAM_CHAT_ID)) {
+    const isBusinessMessage = Boolean(update.business_message);
+    const businessConnectionId = message.business_connection_id || env.BUSINESS_CONNECTION_ID;
+
+    if (!isBusinessMessage && env.TELEGRAM_CHAT_ID && String(message.chat.id) !== String(env.TELEGRAM_CHAT_ID)) {
       await sendTelegram(env, message.chat.id, "Bu bot shaxsiy foydalanish uchun sozlangan.");
+      return new Response("OK");
+    }
+
+    if (wantsChecklist(message.text) && businessConnectionId) {
+      try {
+        await sendNativeChecklist(env, businessConnectionId, message.chat.id, message.message_id, tashkentDate(0));
+      } catch (error) {
+        await sendTelegram(env, message.chat.id, `Native checklist yuborilmadi:\n<code>${escapeHtml(error.message)}</code>`);
+      }
       return new Response("OK");
     }
 

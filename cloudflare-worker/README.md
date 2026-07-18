@@ -12,6 +12,30 @@ Bu Worker Telegram botga yozilganda darhol javob berish uchun kerak.
 
 ## Deploy
 
+### Eng sodda yo'l: dashboard orqali qo'lda deploy
+
+Cloudflare Git deploy ekrani ishlamasa, uni ishlatish shart emas.
+
+1. Cloudflare'da **Workers & Pages** ga kiring.
+2. **Create Worker** bosing.
+3. Oddiy "Hello World" Worker yarating.
+4. **Deploy** bosing.
+5. Worker ochilgach **Edit code** bosing.
+6. `cloudflare-worker/fitness_bot_worker.js` ichidagi kodni to'liq paste qiling.
+7. **Save and deploy** bosing.
+8. Worker URL'ni oling, masalan: `https://fitness-reminder.username.workers.dev`
+
+Keyin Worker **Settings** -> **Variables** ichida secretlar qo'shiladi:
+
+- `TELEGRAM_BOT_TOKEN`
+- `TELEGRAM_CHAT_ID`
+
+Oddiy variable:
+
+- `FITNESS_START_DATE=2026-07-19`
+
+### GitHub repo orqali deploy
+
 Cloudflare'da Worker yarating va `fitness_bot_worker.js` ichidagi kodni joylang.
 
 GitHub repo orqali deploy qilinsa:
@@ -37,6 +61,27 @@ curl "https://api.telegram.org/botBOT_TOKEN/getWebhookInfo"
 
 - `/today`
 - `bugun nima qilishim kerak`
+- `/checklist`
+- `checklist`
 - `/tomorrow`
 - `ertaga`
 - `/help`
+
+## Native Telegram checklist
+
+Oddiy bot xabaridagi `☐` belgilar faqat matn. Telegram'ning bosiladigan native checklist kartasi uchun Business / Secretary Mode kerak.
+
+To'g'ri oqim:
+
+1. @BotFather ichida bot uchun Business / Secretary Mode yoqiladi.
+2. Telegram Business -> Chatbots ichida bot akkauntga ulanadi.
+3. Webhook `business_connection` update oladi.
+4. Bot `BUSINESS_CONNECTION_ID` ni yuboradi.
+5. Cloudflare Worker Variables ichiga `BUSINESS_CONNECTION_ID` qo'shiladi.
+6. `/checklist` yoki `checklist` yozilganda bot `sendChecklist` ishlatadi.
+
+Rasmiy Bot API bo'yicha:
+
+- `Update` ichida `business_connection` va `business_message` maydonlari bor.
+- `sendChecklist` uchun `business_connection_id`, `chat_id`, `message_id`, `checklist` kerak.
+- `InputChecklist` 1-30 ta task qabul qiladi.
