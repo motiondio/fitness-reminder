@@ -71,6 +71,12 @@ curl "https://api.telegram.org/botBOT_TOKEN/getWebhookInfo"
 
 Oddiy bot xabaridagi `☐` belgilar faqat matn. Telegram'ning bosiladigan native checklist kartasi uchun Business / Secretary Mode kerak.
 
+Status:
+
+- Business / Secretary Mode: ulangan
+- `BUSINESS_CONNECTION_ID`: olingan
+- Keyingi qadam: Cloudflare Worker Variables ichiga `BUSINESS_CONNECTION_ID` qo'shish
+
 To'g'ri oqim:
 
 1. @BotFather ichida bot uchun Business / Secretary Mode yoqiladi.
@@ -78,7 +84,7 @@ To'g'ri oqim:
 3. Webhook `business_connection` update oladi.
 4. Bot `BUSINESS_CONNECTION_ID` ni yuboradi.
 5. Cloudflare Worker Variables ichiga `BUSINESS_CONNECTION_ID` qo'shiladi.
-6. `/checklist` yoki `checklist` yozilganda bot `sendChecklist` ishlatadi.
+6. `/today`, `bugun nima qilishim kerak`, `/checklist` yoki `checklist` yozilganda bot `sendChecklist` ishlatadi.
 
 Rasmiy Bot API bo'yicha:
 

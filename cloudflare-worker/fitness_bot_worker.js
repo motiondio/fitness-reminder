@@ -281,6 +281,16 @@ function wantsChecklist(text) {
   );
 }
 
+function wantsToday(text) {
+  const normalized = text.toLowerCase().trim();
+  return (
+    normalized === "/today" ||
+    normalized.includes("bugun") ||
+    normalized.includes("nima qilish") ||
+    normalized.includes("mashq")
+  );
+}
+
 async function answerCallback(env, callbackQueryId, text) {
   await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
     method: "POST",
@@ -368,7 +378,7 @@ export default {
       return new Response("OK");
     }
 
-    if (wantsChecklist(message.text) && businessConnectionId) {
+    if ((wantsChecklist(message.text) || wantsToday(message.text)) && businessConnectionId) {
       try {
         await sendNativeChecklist(env, businessConnectionId, message.chat.id, message.message_id, tashkentDate(0));
       } catch (error) {

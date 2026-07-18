@@ -18,6 +18,8 @@ Bog'liq notelar:
 - Telegram webhook ulangan
 - Worker URL: `https://fitness-reminder.shahzod-rmusic.workers.dev/`
 - Daily reminder: GitHub Actions orqali 05:00 Asia/Tashkent
+- Business / Secretary Mode: ulangan
+- Native checklist: `BUSINESS_CONNECTION_ID` Cloudflare variable sifatida qo'shilgandan keyin `/today` va `/checklist` uchun ishlaydi
 
 ## Keyingi bosqichlar
 
