@@ -10,8 +10,33 @@ Bu Worker Telegram botga yozilganda darhol javob berish uchun kerak.
 - `TELEGRAM_ALLOWED_CHAT_IDS`
 - `TELEGRAM_TOPIC_ID`
 - `FITNESS_START_DATE`
+- `PRAYER_CHAT_ID`
+- `PRAYER_TOPIC_ID`
+- `PRAYER_SOURCE`
+- `PRAYER_REGION`
+- `PRAYER_CITY`
+- `PRAYER_COUNTRY`
+- `PRAYER_METHOD`
+- `PRAYER_SCHOOL`
+- `PRAYER_REMINDER_INTERVAL_MINUTES`
+- `PRAYER_TIMES`
+- `PRAYER_DISABLE_FALLBACK`
 
 `FITNESS_START_DATE` qiymati: `2026-07-19`
+
+Namoz uchun tavsiya qilingan qiymatlar:
+
+```text
+PRAYER_CHAT_ID=-1002781399618
+PRAYER_TOPIC_ID=namoz_topic_thread_id
+PRAYER_SOURCE=islomapi
+PRAYER_REGION=Toshkent
+PRAYER_REMINDER_INTERVAL_MINUTES=10
+```
+
+`PRAYER_TOPIC_ID` alohida namoz topici uchun ishlaydi. Agar qo'shilmasa, bot `TELEGRAM_TOPIC_ID` ga yozadi.
+
+`PRAYER_CITY`, `PRAYER_COUNTRY`, `PRAYER_METHOD`, `PRAYER_SCHOOL` faqat fallback manba AlAdhan uchun kerak. IslomAPI ishlamasa, bot avtomatik fallback qiladi.
 
 ## Deploy
 
@@ -63,6 +88,25 @@ Tekshirish:
 curl "https://api.telegram.org/botBOT_TOKEN/getWebhookInfo"
 ```
 
+Command menu yangilash:
+
+```bash
+curl -X POST "https://api.telegram.org/botBOT_TOKEN/setMyCommands" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "commands": [
+      {"command": "start", "description": "Bot menyusi"},
+      {"command": "today", "description": "Bugungi fitness checklist"},
+      {"command": "tomorrow", "description": "Ertangi fitness checklist"},
+      {"command": "namoz", "description": "Bugungi namoz vaqtlari"},
+      {"command": "qazo", "description": "Qazo panel"},
+      {"command": "qazo_set", "description": "Qazo sonini kiritish"},
+      {"command": "threadid", "description": "Topic ID olish"},
+      {"command": "status", "description": "Bot status"}
+    ]
+  }'
+```
+
 ## Bot buyruqlari
 
 - `/today`
@@ -75,7 +119,108 @@ curl "https://api.telegram.org/botBOT_TOKEN/getWebhookInfo"
 - `/status`
 - `/tomorrow`
 - `ertaga`
+- `/namoz`
+- `/qazo`
+- `/qazo_set bomdod 10`
+- `/qazo_add peshin 1`
+- `/qazo_minus asr 1`
 - `/help`
+
+## Namoz eslatmalari
+
+Namoz moduli Cloudflare Worker scheduled trigger orqali ishlaydi. Worker har bir cron chaqiruvida bugungi namoz vaqti kirgan-kirmaganini tekshiradi.
+
+Ishlash tartibi:
+
+- Namoz vaqti kirsa, bot `PRAYER_CHAT_ID` ichidagi `PRAYER_TOPIC_ID` topicga eslatma yuboradi.
+- Eslatma ichida `✅ O'qidim` va `➕ Qazo bo'ldi` tugmalari bor.
+- `✅ O'qidim` bosilsa, eslatma xabari qoladi va shu namoz uchun qayta eslatma to'xtaydi.
+- `➕ Qazo bo'ldi` bosilsa, shu namoz qazo hisobiga +1 qo'shiladi va eslatma to'xtaydi.
+- Agar belgilamasangiz, keyingi eslatma yuborilganda oldingi eslatma o'chiriladi. Chatda eslatmalar ko'payib ketmaydi.
+- Bir vaqtning o'zida faqat bitta aktiv namoz eslatmasi turadi.
+- Qazo hisoblari `CHECKLIST_STATE` KV ichida doimiy saqlanadi.
+
+### Namoz topici
+
+1. Telegram supergroup ichida yangi topic yarating, masalan `Namoz`.
+2. Shu topic ichida yozing:
+
+```text
+/threadid
+```
+
+3. Bot qaytargan `Topic / thread ID` qiymatini Cloudflare Worker variable sifatida qo'shing:
+
+```text
+PRAYER_TOPIC_ID=thread_id
+```
+
+4. Namoz xabarlari borishi kerak bo'lgan chat ID ni qo'shing:
+
+```text
+PRAYER_CHAT_ID=-1002781399618
+```
+
+5. `TELEGRAM_ALLOWED_CHAT_IDS` ichida shu group ID ham borligiga ishonch hosil qiling:
+
+```text
+TELEGRAM_ALLOWED_CHAT_IDS=8084782034,-1002781399618
+```
+
+### Cron Trigger
+
+Namoz eslatmalari avtomatik kelishi uchun Cloudflare'da cron kerak.
+
+Dashboard orqali:
+
+1. Worker -> **Settings** -> **Triggers** ga kiring.
+2. **Add Cron Trigger** bosing.
+3. Cron qiymatini yozing:
+
+```text
+*/5 * * * *
+```
+
+Bu Worker'ni har 5 daqiqada ishga tushiradi. Eslatma intervalini `PRAYER_REMINDER_INTERVAL_MINUTES=10` qilib qo'ysangiz, bir namoz uchun xabar 10 daqiqadan tez qayta chiqmaydi.
+
+### Qazo panel
+
+`/qazo` buyrug'i qazo dashboard xabarini yaratadi yoki mavjudini yangilaydi. Bot uni pin qilishga urinadi. Pin ishlashi uchun bot group admin bo'lishi va `Pin messages` ruxsatiga ega bo'lishi kerak.
+
+Qazo hisobini qo'lda kiritish:
+
+```text
+/qazo_set bomdod 10
+/qazo_set peshin 3
+/qazo_add asr 1
+/qazo_minus shom 1
+```
+
+Qabul qilinadigan nomlar:
+
+```text
+bomdod, peshin, asr, shom, xufton
+```
+
+Namoz vaqtlari asosiy manba sifatida `https://islomapi.uz/api/daily` orqali olinadi. Bu zero8d/namozvatqiapi reposida ko'rsatilgan endpoint va ma'lumotlar islom.uz asosida.
+
+Ishlatiladigan endpoint:
+
+```text
+https://islomapi.uz/api/daily?region=Toshkent&month=7&day=19
+```
+
+API vaqtincha ishlamasa, bot AlAdhan fallback manbaga o'tadi. Fallbackni o'chirish kerak bo'lsa:
+
+```text
+PRAYER_DISABLE_FALLBACK=1
+```
+
+Agar internet/API ishlamasa yoki vaqtlarni qo'lda berishni xohlasangiz, Cloudflare variable sifatida quyidagini qo'shish mumkin:
+
+```text
+PRAYER_TIMES=bomdod=03:31,peshin=12:29,asr=17:39,shom=19:52,xufton=21:28
+```
 
 ## Native Telegram checklist
 

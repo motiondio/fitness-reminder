@@ -29,12 +29,16 @@ Bog'liq notelar:
 - `/tomorrow` ham inline checklist yuboradi va ertangi sana uchun alohida state saqlaydi
 - Checklist tugmalari: task toggle, `✅ Hammasi`, `♻️ Reset`
 - Supergroup topic support: `/threadid`, `TELEGRAM_TOPIC_ID`
+- Namoz moduli: `/namoz`, `/qazo`, `/qazo_set`, `PRAYER_TOPIC_ID`
+- Namoz eslatmalari Cloudflare Cron Trigger orqali ishlaydi
+- Qazo paneli KV xotirada saqlanadi va groupda pin qilishga urinadi
+- Namoz vaqtlari manbasi: islomapi.uz, fallback: AlAdhan
 
 ## Keyingi bosqichlar
 
-- Business / Secretary Mode orqali native Telegram checklistni yakunlash
-- `BUSINESS_CONNECTION_ID` ni Cloudflare Worker variable sifatida qo'shish
-- Private group ID ni `/chatid` orqali topib, `NATIVE_CHECKLIST_CHAT_ID` ga yozish
+- Namoz topic ichida `/threadid` orqali `PRAYER_TOPIC_ID` ni olish
+- Cloudflare Worker uchun `*/5 * * * *` Cron Trigger qo'shish
+- Botni group admin qilib, `Pin messages` ruxsatini berish
 - AI'siz aqlli komandalarni kengaytirish
 - OpenAI API yoki bepul alternativani keyinroq ulash
 - Progress loglarini [[8 haftalik kardio reja]] bilan bog'lash

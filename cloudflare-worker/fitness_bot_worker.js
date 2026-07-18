@@ -95,6 +95,14 @@ const STAIR_SETTINGS = [
   "Level 6-7",
 ];
 
+const PRAYERS = [
+  { key: "fajr", apiKey: "Fajr", label: "Bomdod", aliases: ["bomdod", "fajr"] },
+  { key: "dhuhr", apiKey: "Dhuhr", label: "Peshin", aliases: ["peshin", "zuhur", "dhuhr"] },
+  { key: "asr", apiKey: "Asr", label: "Asr", aliases: ["asr"] },
+  { key: "maghrib", apiKey: "Maghrib", label: "Shom", aliases: ["shom", "maghrib"] },
+  { key: "isha", apiKey: "Isha", label: "Xufton", aliases: ["xufton", "hufton", "isha"] },
+];
+
 function tashkentDate(offsetDays = 0) {
   const now = new Date();
   const tashkent = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Tashkent" }));
@@ -118,6 +126,34 @@ function parseDate(value) {
   return new Date(year, month - 1, day);
 }
 
+function tashkentNowParts() {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Tashkent",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  })
+    .formatToParts(new Date())
+    .reduce((result, part) => {
+      if (part.type !== "literal") {
+        result[part.type] = part.value;
+      }
+      return result;
+    }, {});
+
+  const hour = Number(parts.hour);
+  const minute = Number(parts.minute);
+  return {
+    dateKey: `${parts.year}-${parts.month}-${parts.day}`,
+    hour,
+    minute,
+    minutes: hour * 60 + minute,
+  };
+}
+
 function dateFromCallback(value) {
   return /^\d{4}-\d{2}-\d{2}$/.test(value) ? parseDate(value) : tashkentDate(0);
 }
@@ -127,6 +163,39 @@ function escapeHtml(value) {
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
+}
+
+function normalizeCommand(text) {
+  const parts = String(text || "").toLowerCase().trim().split(/\s+/);
+  if (parts[0]) {
+    parts[0] = parts[0].split("@")[0];
+  }
+  return parts.join(" ");
+}
+
+function prayerByName(value) {
+  const normalized = String(value || "").toLowerCase().trim();
+  return PRAYERS.find((prayer) => prayer.aliases.includes(normalized)) || null;
+}
+
+function prayerChatId(env) {
+  return env.PRAYER_CHAT_ID || env.NATIVE_CHECKLIST_CHAT_ID || env.TELEGRAM_CHAT_ID || null;
+}
+
+function prayerThreadId(env, fallbackThreadId = null) {
+  return Number(env.PRAYER_TOPIC_ID || fallbackThreadId || env.TELEGRAM_TOPIC_ID || 0) || null;
+}
+
+function prayerReminderIntervalMinutes(env) {
+  return Math.max(1, Number(env.PRAYER_REMINDER_INTERVAL_MINUTES || 10));
+}
+
+function prayerSource(env) {
+  return String(env.PRAYER_SOURCE || "islomapi").toLowerCase().trim();
+}
+
+function prayerRegion(env) {
+  return env.PRAYER_REGION || env.PRAYER_CITY || "Toshkent";
 }
 
 function buildWorkoutMessage(targetDate, env) {
@@ -277,6 +346,28 @@ async function setChecklistMask(env, chatId, targetDate, mask) {
   });
 }
 
+async function kvGet(env, key, fallback = null) {
+  if (!env.CHECKLIST_STATE) {
+    return fallback;
+  }
+  const value = await env.CHECKLIST_STATE.get(key);
+  return value ?? fallback;
+}
+
+async function kvPut(env, key, value, ttlSeconds = 60 * 60 * 24 * 365) {
+  if (!env.CHECKLIST_STATE) {
+    return;
+  }
+  await env.CHECKLIST_STATE.put(key, String(value), { expirationTtl: ttlSeconds });
+}
+
+async function kvDelete(env, key) {
+  if (!env.CHECKLIST_STATE) {
+    return;
+  }
+  await env.CHECKLIST_STATE.delete(key);
+}
+
 function inlineChecklistKeyboard(targetDate, env, mask = 0) {
   const tasks = checklistTasks(targetDate, env);
   const dateKey = formatDate(targetDate);
@@ -304,7 +395,11 @@ function helpMessage() {
     "• /tomorrow - ertangi reja",
     "• /reset - bugungi checklistni tozalash",
     "• /chatid - joriy chat ID",
+    "• /threadid - joriy topic ID",
     "• /status - bot sozlamalarini tekshirish",
+    "• /namoz - bugungi namoz vaqtlari",
+    "• /qazo - qazo panel",
+    "• /qazo_set bomdod 10 - qazo sonini qo'lda kiritish",
     "• /help - yordam",
     "",
     "Progress saqlanishi uchun Cloudflare KV binding kerak: <code>CHECKLIST_STATE</code>.",
@@ -321,6 +416,14 @@ function statusMessage(env, chatId) {
     `NATIVE_CHECKLIST_CHAT_ID: <code>${escapeHtml(env.NATIVE_CHECKLIST_CHAT_ID || "yo'q")}</code>`,
     `TELEGRAM_ALLOWED_CHAT_IDS: <code>${escapeHtml(env.TELEGRAM_ALLOWED_CHAT_IDS || "yo'q")}</code>`,
     `TELEGRAM_TOPIC_ID: <code>${escapeHtml(env.TELEGRAM_TOPIC_ID || "yo'q")}</code>`,
+    `PRAYER_CHAT_ID: <code>${escapeHtml(prayerChatId(env) || "yo'q")}</code>`,
+    `PRAYER_TOPIC_ID: <code>${escapeHtml(env.PRAYER_TOPIC_ID || "yo'q")}</code>`,
+    `PRAYER_SOURCE: <code>${escapeHtml(prayerSource(env))}</code>`,
+    `PRAYER_REGION: <code>${escapeHtml(prayerRegion(env))}</code>`,
+    `PRAYER_CITY: <code>${escapeHtml(env.PRAYER_CITY || "Tashkent")}</code>`,
+    `PRAYER_COUNTRY: <code>${escapeHtml(env.PRAYER_COUNTRY || "Uzbekistan")}</code>`,
+    `PRAYER_REMINDER_INTERVAL_MINUTES: <code>${escapeHtml(prayerReminderIntervalMinutes(env))}</code>`,
+    `PRAYER_TIMES: <b>${env.PRAYER_TIMES ? "manual" : "API"}</b>`,
     "",
     env.CHECKLIST_STATE
       ? "Checklist holati /today qayta chaqirilganda saqlanishi kerak."
@@ -347,6 +450,10 @@ function workoutKeyboard() {
         { text: "♻️ Reset", callback_data: "reset_today" },
         { text: "ℹ️ Yordam", callback_data: "help" },
       ],
+      [
+        { text: "🕌 Namoz", callback_data: "namoz:today" },
+        { text: "🧭 Qazo", callback_data: "qz:show" },
+      ],
     ],
   };
 }
@@ -361,8 +468,11 @@ async function sendTelegram(env, chatId, text, replyMarkup = null, options = {})
     body: JSON.stringify(body),
   });
   if (!response.ok) {
-    throw new Error(`Telegram API failed: ${response.status}`);
+    const errorText = await response.text();
+    throw new Error(`Telegram sendMessage failed: ${response.status} ${errorText}`);
   }
+  const data = await response.json();
+  return data.result;
 }
 
 async function editTelegramMessage(env, chatId, messageId, text, replyMarkup = null, options = {}) {
@@ -375,8 +485,32 @@ async function editTelegramMessage(env, chatId, messageId, text, replyMarkup = n
     body: JSON.stringify(body),
   });
   if (!response.ok) {
-    throw new Error(`Telegram editMessageText failed: ${response.status}`);
+    const errorText = await response.text();
+    if (errorText.includes("message is not modified")) {
+      return null;
+    }
+    throw new Error(`Telegram editMessageText failed: ${response.status} ${errorText}`);
   }
+  const data = await response.json();
+  return data.result;
+}
+
+async function deleteTelegramMessage(env, chatId, messageId) {
+  const response = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/deleteMessage`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ chat_id: chatId, message_id: messageId }),
+  });
+  return response.ok;
+}
+
+async function pinTelegramMessage(env, chatId, messageId) {
+  const response = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/pinChatMessage`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ chat_id: chatId, message_id: messageId, disable_notification: true }),
+  });
+  return response.ok;
 }
 
 async function sendNativeChecklist(env, businessConnectionId, chatId, targetDate) {
@@ -398,6 +532,510 @@ async function sendNativeChecklist(env, businessConnectionId, chatId, targetDate
   }
 }
 
+function prayerTimeMinutes(value) {
+  const match = String(value || "").match(/(\d{1,2}):(\d{2})/);
+  if (!match) {
+    return null;
+  }
+  return Number(match[1]) * 60 + Number(match[2]);
+}
+
+function aladhanDate(dateKey) {
+  const [year, month, day] = dateKey.split("-");
+  return `${day}-${month}-${year}`;
+}
+
+function monthDayFromDateKey(dateKey) {
+  const [, month, day] = dateKey.split("-").map(Number);
+  return { month, day };
+}
+
+function prayerTimesCacheKey(env, dateKey) {
+  const source = prayerSource(env);
+  return [
+    "prayer:times",
+    source,
+    dateKey,
+    prayerRegion(env),
+    env.PRAYER_CITY || "Tashkent",
+    env.PRAYER_COUNTRY || "Uzbekistan",
+    env.PRAYER_METHOD || "2",
+    env.PRAYER_SCHOOL || "1",
+  ].join(":");
+}
+
+function parseManualPrayerTimes(env, dateKey) {
+  if (!env.PRAYER_TIMES) {
+    return null;
+  }
+
+  const rawTimes = {};
+  for (const part of String(env.PRAYER_TIMES).split(/[,\n;]/)) {
+    const [name, value] = part.split("=").map((item) => item && item.trim());
+    const prayer = prayerByName(name);
+    if (prayer && prayerTimeMinutes(value) !== null) {
+      rawTimes[prayer.key] = value;
+    }
+  }
+
+  if (!PRAYERS.every((prayer) => rawTimes[prayer.key])) {
+    return null;
+  }
+
+  return {
+    dateKey,
+    city: env.PRAYER_CITY || "manual",
+    country: env.PRAYER_COUNTRY || "manual",
+    source: "manual",
+    timings: PRAYERS.map((prayer) => ({
+      ...prayer,
+      time: rawTimes[prayer.key],
+      minute: prayerTimeMinutes(rawTimes[prayer.key]),
+    })),
+  };
+}
+
+function scheduleFromIslomApi(dateKey, region, data) {
+  const rawTimes = data.times || {};
+  const mappedTimes = {
+    fajr: rawTimes.tong_saharlik,
+    dhuhr: rawTimes.peshin,
+    asr: rawTimes.asr,
+    maghrib: rawTimes.shom_iftor,
+    isha: rawTimes.hufton,
+  };
+
+  const timings = PRAYERS.map((prayer) => ({
+    ...prayer,
+    time: mappedTimes[prayer.key],
+    minute: prayerTimeMinutes(mappedTimes[prayer.key]),
+  })).filter((prayer) => prayer.minute !== null);
+
+  if (timings.length !== PRAYERS.length) {
+    throw new Error("IslomAPI response missing prayer times");
+  }
+
+  return {
+    dateKey,
+    city: region,
+    country: "Uzbekistan",
+    source: "islomapi",
+    weekday: data.weekday,
+    timings,
+  };
+}
+
+async function fetchIslomPrayerSchedule(env, dateKey) {
+  const region = prayerRegion(env);
+  const { month, day } = monthDayFromDateKey(dateKey);
+  const url = new URL("https://islomapi.uz/api/daily");
+  url.searchParams.set("region", region);
+  url.searchParams.set("month", month);
+  url.searchParams.set("day", day);
+
+  const response = await fetch(url.toString(), {
+    headers: { "user-agent": "fitness-reminder-worker/1.0" },
+  });
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`IslomAPI failed: ${response.status} ${errorText.slice(0, 120)}`);
+  }
+
+  const data = await response.json();
+  return scheduleFromIslomApi(dateKey, region, data);
+}
+
+async function fetchAladhanPrayerSchedule(env, dateKey) {
+  const city = env.PRAYER_CITY || "Tashkent";
+  const country = env.PRAYER_COUNTRY || "Uzbekistan";
+  const method = env.PRAYER_METHOD || "2";
+  const school = env.PRAYER_SCHOOL || "1";
+  const url = new URL(`https://api.aladhan.com/v1/timingsByCity/${aladhanDate(dateKey)}`);
+  url.searchParams.set("city", city);
+  url.searchParams.set("country", country);
+  url.searchParams.set("method", method);
+  url.searchParams.set("school", school);
+
+  const response = await fetch(url.toString());
+  const data = await response.json();
+  if (!response.ok || data.code !== 200) {
+    throw new Error(`AlAdhan API failed: ${response.status}`);
+  }
+
+  const timings = PRAYERS.map((prayer) => {
+    const time = data.data.timings[prayer.apiKey];
+    return {
+      ...prayer,
+      time,
+      minute: prayerTimeMinutes(time),
+    };
+  }).filter((prayer) => prayer.minute !== null);
+
+  return {
+    dateKey,
+    city,
+    country,
+    source: "aladhan",
+    timezone: data.data.meta?.timezone || "Asia/Tashkent",
+    timings,
+  };
+}
+
+async function fetchPrayerSchedule(env, dateKey) {
+  if (prayerSource(env) === "aladhan") {
+    return fetchAladhanPrayerSchedule(env, dateKey);
+  }
+
+  try {
+    return await fetchIslomPrayerSchedule(env, dateKey);
+  } catch (error) {
+    if (env.PRAYER_DISABLE_FALLBACK === "1") {
+      throw error;
+    }
+    const fallback = await fetchAladhanPrayerSchedule(env, dateKey);
+    return { ...fallback, source: "aladhan_fallback" };
+  }
+}
+
+async function getPrayerSchedule(env, dateKey) {
+  const manual = parseManualPrayerTimes(env, dateKey);
+  if (manual) {
+    return manual;
+  }
+
+  const cacheKey = prayerTimesCacheKey(env, dateKey);
+  const cached = await kvGet(env, cacheKey);
+  if (cached) {
+    try {
+      return JSON.parse(cached);
+    } catch (_) {
+      await kvDelete(env, cacheKey);
+    }
+  }
+
+  const schedule = await fetchPrayerSchedule(env, dateKey);
+  await kvPut(env, cacheKey, JSON.stringify(schedule), 60 * 60 * 36);
+  return schedule;
+}
+
+function prayerDoneKey(chatId, dateKey, prayerKey) {
+  return `prayer:done:${chatId}:${dateKey}:${prayerKey}`;
+}
+
+function prayerReminderKey(chatId, dateKey, prayerKey) {
+  return `prayer:reminder:${chatId}:${dateKey}:${prayerKey}`;
+}
+
+function activePrayerReminderKey(chatId) {
+  return `prayer:active-reminder:${chatId}`;
+}
+
+function qazoKey(chatId, prayerKey) {
+  return `prayer:qazo:${chatId}:${prayerKey}`;
+}
+
+function qazoDashboardKey(chatId, threadId) {
+  return `prayer:qazo-dashboard:${chatId}:${threadId || "general"}`;
+}
+
+async function isPrayerDone(env, chatId, dateKey, prayerKey) {
+  return Boolean(await kvGet(env, prayerDoneKey(chatId, dateKey, prayerKey)));
+}
+
+async function markPrayerDone(env, chatId, dateKey, prayerKey, value = "done") {
+  await kvPut(env, prayerDoneKey(chatId, dateKey, prayerKey), value, 60 * 60 * 24 * 120);
+  await kvDelete(env, prayerReminderKey(chatId, dateKey, prayerKey));
+  const activeRaw = await kvGet(env, activePrayerReminderKey(chatId));
+  if (activeRaw) {
+    try {
+      const active = JSON.parse(activeRaw);
+      if (active.date_key === dateKey && active.prayer_key === prayerKey) {
+        await kvDelete(env, activePrayerReminderKey(chatId));
+      }
+    } catch (_) {
+      await kvDelete(env, activePrayerReminderKey(chatId));
+    }
+  }
+}
+
+async function getQazoCount(env, chatId, prayerKey) {
+  return Math.max(0, Number(await kvGet(env, qazoKey(chatId, prayerKey), "0")) || 0);
+}
+
+async function setQazoCount(env, chatId, prayerKey, count) {
+  await kvPut(env, qazoKey(chatId, prayerKey), Math.max(0, Number(count) || 0), 60 * 60 * 24 * 365 * 5);
+}
+
+async function adjustQazoCount(env, chatId, prayerKey, delta) {
+  const count = await getQazoCount(env, chatId, prayerKey);
+  const nextCount = Math.max(0, count + delta);
+  await setQazoCount(env, chatId, prayerKey, nextCount);
+  return nextCount;
+}
+
+async function getQazoCounts(env, chatId) {
+  const entries = {};
+  for (const prayer of PRAYERS) {
+    entries[prayer.key] = await getQazoCount(env, chatId, prayer.key);
+  }
+  return entries;
+}
+
+function qazoTotal(counts) {
+  return PRAYERS.reduce((total, prayer) => total + Number(counts[prayer.key] || 0), 0);
+}
+
+async function buildQazoDashboardText(env, chatId, notice = null) {
+  const counts = await getQazoCounts(env, chatId);
+  return [
+    "🧭 <b>Qazo panel</b>",
+    "",
+    `<b>Jami qazo: ${qazoTotal(counts)}</b>`,
+    ...PRAYERS.map((prayer) => `${escapeHtml(prayer.label)}: <b>${counts[prayer.key] || 0}</b>`),
+    "",
+    env.CHECKLIST_STATE ? "Holat KV xotirada saqlanadi." : "KV ulanmagan: qazo hisobi saqlanmaydi.",
+    notice ? `\n${escapeHtml(notice)}` : "",
+  ].filter(Boolean).join("\n");
+}
+
+function qazoDashboardKeyboard() {
+  return {
+    inline_keyboard: [
+      ...PRAYERS.map((prayer) => [
+        { text: `➖ ${prayer.label}`, callback_data: `qz:-:${prayer.key}` },
+        { text: `➕ ${prayer.label}`, callback_data: `qz:+:${prayer.key}` },
+      ]),
+      [{ text: "🔄 Yangilash", callback_data: "qz:refresh" }],
+    ],
+  };
+}
+
+async function upsertQazoDashboard(env, chatId, threadId, notice = null) {
+  const key = qazoDashboardKey(chatId, threadId);
+  const text = await buildQazoDashboardText(env, chatId, notice);
+  const keyboard = qazoDashboardKeyboard();
+  const existingMessageId = await kvGet(env, key);
+
+  if (existingMessageId) {
+    try {
+      await editTelegramMessage(env, chatId, Number(existingMessageId), text, keyboard, threadOptions(threadId));
+      return Number(existingMessageId);
+    } catch (_) {
+      await kvDelete(env, key);
+    }
+  }
+
+  const message = await sendTelegram(env, chatId, text, keyboard, threadOptions(threadId));
+  if (message?.message_id) {
+    await kvPut(env, key, message.message_id, 60 * 60 * 24 * 365 * 5);
+    await pinTelegramMessage(env, chatId, message.message_id);
+    return message.message_id;
+  }
+  return null;
+}
+
+function prayerReminderKeyboard(dateKey, prayerKey) {
+  return {
+    inline_keyboard: [
+      [
+        { text: "✅ O'qidim", callback_data: `prd:${dateKey}:${prayerKey}` },
+        { text: "➕ Qazo bo'ldi", callback_data: `prq:${dateKey}:${prayerKey}` },
+      ],
+      [{ text: "🧭 Qazo panel", callback_data: "qz:show" }],
+    ],
+  };
+}
+
+async function buildPrayerReminderText(env, chatId, schedule, prayer, nowParts) {
+  const counts = await getQazoCounts(env, chatId);
+  return [
+    `🕌 <b>${escapeHtml(prayer.label)} vaqti kirdi</b>`,
+    `<code>${escapeHtml(schedule.dateKey)}</code> • <b>${escapeHtml(prayer.time)}</b>`,
+    "",
+    "O'qiguningizcha eslatma qayta keladi.",
+    "Yangi eslatma yuborilganda oldingi eslatma o'chiriladi.",
+    "",
+    `Hozir: <code>${String(nowParts.hour).padStart(2, "0")}:${String(nowParts.minute).padStart(2, "0")}</code>`,
+    `Jami qazo: <b>${qazoTotal(counts)}</b>`,
+  ].join("\n");
+}
+
+function buildPrayerDoneText(schedule, prayer, status) {
+  const isQazo = status === "qazo";
+  return [
+    `${isQazo ? "🧾" : "✅"} <b>${escapeHtml(prayer.label)}</b>`,
+    `<code>${escapeHtml(schedule.dateKey)}</code> • <b>${escapeHtml(prayer.time)}</b>`,
+    "",
+    isQazo ? "Qazo hisobiga qo'shildi." : "O'qildi deb belgilandi.",
+  ].join("\n");
+}
+
+async function sendPrayerReminder(env, chatId, threadId, schedule, prayer, nowParts) {
+  const stateKey = prayerReminderKey(chatId, schedule.dateKey, prayer.key);
+  const activeKey = activePrayerReminderKey(chatId);
+  const intervalMs = prayerReminderIntervalMinutes(env) * 60 * 1000;
+  const previousRaw = await kvGet(env, stateKey);
+
+  if (previousRaw) {
+    try {
+      const previous = JSON.parse(previousRaw);
+      const sentAt = new Date(previous.sent_at).getTime();
+      if (Number.isFinite(sentAt) && Date.now() - sentAt < intervalMs) {
+        return;
+      }
+      if (previous.message_id) {
+        await deleteTelegramMessage(env, chatId, previous.message_id);
+      }
+    } catch (_) {
+      await kvDelete(env, stateKey);
+    }
+  }
+
+  const activeRaw = await kvGet(env, activeKey);
+  if (activeRaw) {
+    try {
+      const active = JSON.parse(activeRaw);
+      if (active.message_id) {
+        await deleteTelegramMessage(env, chatId, active.message_id);
+      }
+      if (active.date_key && active.prayer_key) {
+        await kvDelete(env, prayerReminderKey(chatId, active.date_key, active.prayer_key));
+      }
+    } catch (_) {
+      await kvDelete(env, activeKey);
+    }
+  }
+
+  const message = await sendTelegram(
+    env,
+    chatId,
+    await buildPrayerReminderText(env, chatId, schedule, prayer, nowParts),
+    prayerReminderKeyboard(schedule.dateKey, prayer.key),
+    threadOptions(threadId)
+  );
+  if (message?.message_id) {
+    await kvPut(
+      env,
+      stateKey,
+      JSON.stringify({ message_id: message.message_id, sent_at: new Date().toISOString() }),
+      60 * 60 * 24 * 3
+    );
+    await kvPut(
+      env,
+      activeKey,
+      JSON.stringify({
+        message_id: message.message_id,
+        sent_at: new Date().toISOString(),
+        date_key: schedule.dateKey,
+        prayer_key: prayer.key,
+      }),
+      60 * 60 * 24 * 3
+    );
+  }
+}
+
+async function pendingPrayer(env, chatId, schedule, nowMinutes) {
+  const duePrayers = schedule.timings.filter((prayer) => prayer.minute <= nowMinutes);
+  for (const prayer of duePrayers.reverse()) {
+    if (!(await isPrayerDone(env, chatId, schedule.dateKey, prayer.key))) {
+      return prayer;
+    }
+  }
+  return null;
+}
+
+async function runPrayerReminder(env) {
+  const chatId = prayerChatId(env);
+  if (!chatId || !env.TELEGRAM_BOT_TOKEN) {
+    return;
+  }
+
+  const nowParts = tashkentNowParts();
+  const schedule = await getPrayerSchedule(env, nowParts.dateKey);
+  const prayer = await pendingPrayer(env, chatId, schedule, nowParts.minutes);
+  if (!prayer) {
+    return;
+  }
+
+  await sendPrayerReminder(env, chatId, prayerThreadId(env), schedule, prayer, nowParts);
+}
+
+async function buildPrayerStatusText(env, chatId) {
+  const nowParts = tashkentNowParts();
+  const schedule = await getPrayerSchedule(env, nowParts.dateKey);
+  const counts = await getQazoCounts(env, chatId);
+  const lines = [];
+
+  for (const prayer of schedule.timings) {
+    const done = await isPrayerDone(env, chatId, schedule.dateKey, prayer.key);
+    const marker = done ? "✅" : nowParts.minutes >= prayer.minute ? "⏳" : "☐";
+    lines.push(`${marker} ${escapeHtml(prayer.label)}: <b>${escapeHtml(prayer.time)}</b>`);
+  }
+
+  const next = schedule.timings.find((prayer) => prayer.minute > nowParts.minutes);
+  return [
+    "🕌 <b>Namoz vaqtlari</b>",
+    `<code>${escapeHtml(schedule.dateKey)}</code> • ${escapeHtml(schedule.city)}, ${escapeHtml(schedule.country)}`,
+    `Manba: <code>${escapeHtml(schedule.source || "unknown")}</code>`,
+    "",
+    ...lines,
+    "",
+    next ? `Keyingi namoz: <b>${escapeHtml(next.label)}</b> ${escapeHtml(next.time)}` : "Bugungi barcha namoz vaqtlari kirgan.",
+    `Jami qazo: <b>${qazoTotal(counts)}</b>`,
+  ].join("\n");
+}
+
+function prayerStatusKeyboard() {
+  return {
+    inline_keyboard: [
+      [{ text: "🧭 Qazo panel", callback_data: "qz:show" }],
+      [{ text: "🔄 Yangilash", callback_data: "namoz:today" }],
+    ],
+  };
+}
+
+function wantsNamoz(text) {
+  const normalized = normalizeCommand(text);
+  return normalized === "/namoz" || normalized.includes("namoz");
+}
+
+function wantsQazo(text) {
+  const normalized = normalizeCommand(text);
+  return normalized === "/qazo" || normalized === "/qazolar";
+}
+
+function parseQazoCommand(text) {
+  const parts = normalizeCommand(text).split(/\s+/).filter(Boolean);
+  const command = parts[0];
+  if (!["/qazo_set", "/qazo_add", "/qazo_minus"].includes(command)) {
+    return null;
+  }
+
+  const prayer = prayerByName(parts[1]);
+  const amount = Number(parts[2]);
+  if (!prayer || !Number.isFinite(amount)) {
+    return { error: true };
+  }
+
+  return {
+    prayer,
+    amount: Math.max(0, Math.floor(amount)),
+    type: command.replace("/qazo_", ""),
+  };
+}
+
+function qazoUsageMessage() {
+  return [
+    "Qazo hisobini kiritish:",
+    "",
+    "<code>/qazo_set bomdod 10</code>",
+    "<code>/qazo_add peshin 1</code>",
+    "<code>/qazo_minus asr 1</code>",
+    "",
+    "Nomlar: bomdod, peshin, asr, shom, xufton.",
+  ].join("\n");
+}
+
 async function sendInlineChecklist(env, chatId, targetDate, notice = null, options = {}) {
   if (notice) {
     await sendTelegram(env, chatId, notice, null, options);
@@ -407,7 +1045,7 @@ async function sendInlineChecklist(env, chatId, targetDate, notice = null, optio
 }
 
 function wantsChecklist(text) {
-  const normalized = text.toLowerCase().trim();
+  const normalized = normalizeCommand(text);
   return (
     normalized === "/checklist" ||
     normalized.includes("checklist") ||
@@ -416,12 +1054,12 @@ function wantsChecklist(text) {
 }
 
 function wantsNativeChecklist(text) {
-  const normalized = text.toLowerCase().trim();
+  const normalized = normalizeCommand(text);
   return normalized === "/native" || normalized.includes("native");
 }
 
 function wantsToday(text) {
-  const normalized = text.toLowerCase().trim();
+  const normalized = normalizeCommand(text);
   return (
     normalized === "/today" ||
     normalized.includes("bugun") ||
@@ -431,22 +1069,22 @@ function wantsToday(text) {
 }
 
 function wantsTomorrow(text) {
-  const normalized = text.toLowerCase().trim();
+  const normalized = normalizeCommand(text);
   return normalized === "/tomorrow" || normalized.includes("ertaga") || normalized.includes("tomorrow");
 }
 
 function wantsReset(text) {
-  const normalized = text.toLowerCase().trim();
+  const normalized = normalizeCommand(text);
   return normalized === "/reset" || normalized.includes("reset") || normalized.includes("tozala");
 }
 
 function wantsStatus(text) {
-  const normalized = text.toLowerCase().trim();
-  return normalized === "/status" || normalized.startsWith("/status@");
+  const normalized = normalizeCommand(text);
+  return normalized === "/status";
 }
 
 function isAllowedChat(env, chatId) {
-  const allowed = [env.TELEGRAM_CHAT_ID, env.NATIVE_CHECKLIST_CHAT_ID, env.TELEGRAM_ALLOWED_CHAT_IDS]
+  const allowed = [env.TELEGRAM_CHAT_ID, env.NATIVE_CHECKLIST_CHAT_ID, env.PRAYER_CHAT_ID, env.TELEGRAM_ALLOWED_CHAT_IDS]
     .filter(Boolean)
     .flatMap((value) => String(value).split(","))
     .map((value) => value.trim())
@@ -464,7 +1102,7 @@ async function answerCallback(env, callbackQueryId, text) {
 }
 
 function responseFor(text, env) {
-  const normalized = text.toLowerCase().trim();
+  const normalized = normalizeCommand(text);
   if (normalized === "/start" || normalized === "/help" || normalized.includes("yordam")) {
     return helpMessage();
   }
@@ -479,10 +1117,14 @@ function responseFor(text, env) {
   ) {
     return buildWorkoutMessage(tashkentDate(0), env);
   }
-  return "Tushundim. Bugungi reja kerak bo'lsa, <b>/today</b> yoki <b>bugun nima qilishim kerak</b> deb yozing.";
+  return "Tushundim. Fitness uchun <b>/today</b>, namoz uchun <b>/namoz</b>, qazo panel uchun <b>/qazo</b> deb yozing.";
 }
 
 export default {
+  async scheduled(_event, env, ctx) {
+    ctx.waitUntil(runPrayerReminder(env).catch((error) => console.error(error)));
+  },
+
   async fetch(request, env) {
     if (request.method !== "POST") {
       return new Response("Fitness bot is running.");
@@ -515,7 +1157,87 @@ export default {
         return new Response("OK");
       }
 
-      if (callback.data.startsWith("tgl:")) {
+      if (callback.data.startsWith("prd:")) {
+        const [, dateKey, prayerKey] = callback.data.split(":");
+        const targetSchedule = await getPrayerSchedule(env, dateKey);
+        const prayer = targetSchedule.timings.find((item) => item.key === prayerKey);
+        if (!prayer) {
+          await answerCallback(env, callback.id, "Namoz topilmadi.");
+          return new Response("OK");
+        }
+        await markPrayerDone(env, chatId, dateKey, prayerKey, "done");
+        await editTelegramMessage(
+          env,
+          chatId,
+          callback.message.message_id,
+          buildPrayerDoneText(targetSchedule, prayer, "done"),
+          null,
+          threadOptions(threadId)
+        );
+        await answerCallback(env, callback.id, "O'qildi deb belgilandi.");
+      } else if (callback.data.startsWith("prq:")) {
+        const [, dateKey, prayerKey] = callback.data.split(":");
+        const targetSchedule = await getPrayerSchedule(env, dateKey);
+        const prayer = targetSchedule.timings.find((item) => item.key === prayerKey);
+        if (!prayer) {
+          await answerCallback(env, callback.id, "Namoz topilmadi.");
+          return new Response("OK");
+        }
+        await adjustQazoCount(env, chatId, prayerKey, 1);
+        await markPrayerDone(env, chatId, dateKey, prayerKey, "qazo");
+        await editTelegramMessage(
+          env,
+          chatId,
+          callback.message.message_id,
+          buildPrayerDoneText(targetSchedule, prayer, "qazo"),
+          null,
+          threadOptions(threadId)
+        );
+        await upsertQazoDashboard(env, chatId, threadId, `${prayer.label} qazo hisobiga qo'shildi.`);
+        await answerCallback(env, callback.id, "Qazo hisobiga qo'shildi.");
+      } else if (callback.data.startsWith("qz:")) {
+        const [, action, prayerKey] = callback.data.split(":");
+        const prayer = PRAYERS.find((item) => item.key === prayerKey);
+        if (action === "show") {
+          await upsertQazoDashboard(env, chatId, threadId);
+          await answerCallback(env, callback.id, "Qazo panel yangilandi.");
+        } else if (action === "refresh") {
+          await editTelegramMessage(
+            env,
+            chatId,
+            callback.message.message_id,
+            await buildQazoDashboardText(env, chatId),
+            qazoDashboardKeyboard(),
+            threadOptions(threadId)
+          );
+          await kvPut(env, qazoDashboardKey(chatId, threadId), callback.message.message_id, 60 * 60 * 24 * 365 * 5);
+          await answerCallback(env, callback.id, "Qazo panel yangilandi.");
+        } else if (prayer && ["+", "-"].includes(action)) {
+          await adjustQazoCount(env, chatId, prayer.key, action === "+" ? 1 : -1);
+          await editTelegramMessage(
+            env,
+            chatId,
+            callback.message.message_id,
+            await buildQazoDashboardText(env, chatId),
+            qazoDashboardKeyboard(),
+            threadOptions(threadId)
+          );
+          await kvPut(env, qazoDashboardKey(chatId, threadId), callback.message.message_id, 60 * 60 * 24 * 365 * 5);
+          await answerCallback(env, callback.id, "Qazo hisobi yangilandi.");
+        } else {
+          await answerCallback(env, callback.id, "Qazo tugmasi tushunarsiz.");
+        }
+      } else if (callback.data === "namoz:today") {
+        await editTelegramMessage(
+          env,
+          chatId,
+          callback.message.message_id,
+          await buildPrayerStatusText(env, chatId),
+          prayerStatusKeyboard(),
+          threadOptions(threadId)
+        );
+        await answerCallback(env, callback.id, "Namoz holati yangilandi.");
+      } else if (callback.data.startsWith("tgl:")) {
         const [, dateText, maskText, indexText] = callback.data.split(":");
         const targetDate = dateFromCallback(dateText);
         const currentMask = env.CHECKLIST_STATE
@@ -599,10 +1321,10 @@ export default {
 
     const isBusinessMessage = Boolean(update.business_message);
     const businessConnectionId = message.business_connection_id || env.BUSINESS_CONNECTION_ID;
-    const normalizedText = message.text.toLowerCase().trim();
+    const normalizedText = normalizeCommand(message.text);
     const threadId = threadFromMessage(message, env);
 
-    if (normalizedText === "/threadid" || normalizedText.startsWith("/threadid@")) {
+    if (normalizedText === "/threadid") {
       await sendTelegram(
         env,
         message.chat.id,
@@ -622,7 +1344,7 @@ export default {
       return new Response("OK");
     }
 
-    if (normalizedText === "/chatid" || normalizedText.startsWith("/chatid@")) {
+    if (normalizedText === "/chatid") {
       await sendTelegram(
         env,
         message.chat.id,
@@ -643,6 +1365,34 @@ export default {
 
     if (!isBusinessMessage && !isAllowedChat(env, message.chat.id)) {
       await sendTelegram(env, message.chat.id, "Bu bot shaxsiy foydalanish uchun sozlangan.");
+      return new Response("OK");
+    }
+
+    const qazoCommand = parseQazoCommand(message.text);
+    if (qazoCommand) {
+      if (qazoCommand.error) {
+        await sendTelegram(env, message.chat.id, qazoUsageMessage(), null, threadOptions(threadId));
+        return new Response("OK");
+      }
+
+      if (qazoCommand.type === "set") {
+        await setQazoCount(env, message.chat.id, qazoCommand.prayer.key, qazoCommand.amount);
+      } else {
+        const delta = qazoCommand.type === "add" ? qazoCommand.amount : -qazoCommand.amount;
+        await adjustQazoCount(env, message.chat.id, qazoCommand.prayer.key, delta);
+      }
+      await upsertQazoDashboard(env, message.chat.id, threadId, `${qazoCommand.prayer.label} qazo hisobi yangilandi.`);
+      return new Response("OK");
+    }
+
+    if (wantsNamoz(message.text)) {
+      await sendTelegram(env, message.chat.id, await buildPrayerStatusText(env, message.chat.id), prayerStatusKeyboard(), threadOptions(threadId));
+      await upsertQazoDashboard(env, message.chat.id, threadId);
+      return new Response("OK");
+    }
+
+    if (wantsQazo(message.text)) {
+      await upsertQazoDashboard(env, message.chat.id, threadId);
       return new Response("OK");
     }
 

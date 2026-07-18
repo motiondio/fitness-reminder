@@ -2,8 +2,16 @@
   "name": "fitness-reminder",
   "main": "cloudflare-worker/fitness_bot_worker.js",
   "compatibility_date": "2026-07-18",
+  "triggers": {
+    "crons": [
+      "*/5 * * * *"
+    ]
+  },
   "vars": {
-    "FITNESS_START_DATE": "2026-07-19"
+    "FITNESS_START_DATE": "2026-07-19",
+    "PRAYER_SOURCE": "islomapi",
+    "PRAYER_REGION": "Toshkent",
+    "PRAYER_REMINDER_INTERVAL_MINUTES": "10"
   },
   "secrets": {
     "required": [
