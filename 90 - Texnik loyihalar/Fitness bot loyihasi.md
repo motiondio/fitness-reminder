@@ -25,6 +25,7 @@ Bog'liq notelar:
 - Native checklist cheklovi: self, bot chat va group uchun Telegram API rad etdi
 - Asosiy flow: inline bosiladigan checklist
 - Checklist state: Cloudflare KV binding `CHECKLIST_STATE` kerak
+- Diagnostika: `/status`
 
 ## Keyingi bosqichlar
 

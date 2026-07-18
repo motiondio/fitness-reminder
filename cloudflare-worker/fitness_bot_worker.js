@@ -237,10 +237,14 @@ function buildInlineChecklistText(targetDate, env, mask = 0) {
   const title = plan ? plan.title : "8 haftalik reja";
   const tasks = checklistTasks(targetDate, env);
   const completedCount = tasks.filter((_, index) => Boolean(mask & (1 << index))).length;
+  const storageLine = env.CHECKLIST_STATE
+    ? "Saqlash: KV ulangan"
+    : "Saqlash: KV ulanmagan, /today qayta chaqirilsa reset bo'ladi";
 
   return [
     `✅ <b>${escapeHtml(title)}</b>`,
     `<code>${formatDate(targetDate)}</code>`,
+    `<i>${escapeHtml(storageLine)}</i>`,
     "",
     ...tasks.map((task, index) => `${mask & (1 << index) ? "✅" : "☐"} ${escapeHtml(task)}`),
     "",
@@ -291,9 +295,26 @@ function helpMessage() {
     "• /tomorrow - ertangi reja",
     "• /reset - bugungi checklistni tozalash",
     "• /chatid - joriy chat ID",
+    "• /status - bot sozlamalarini tekshirish",
     "• /help - yordam",
     "",
     "Progress saqlanishi uchun Cloudflare KV binding kerak: <code>CHECKLIST_STATE</code>.",
+  ].join("\n");
+}
+
+function statusMessage(env, chatId) {
+  return [
+    "⚙️ <b>Bot status</b>",
+    "",
+    `Chat ID: <code>${escapeHtml(chatId)}</code>`,
+    `KV CHECKLIST_STATE: <b>${env.CHECKLIST_STATE ? "ulangan" : "ulanmagan"}</b>`,
+    `BUSINESS_CONNECTION_ID: <b>${env.BUSINESS_CONNECTION_ID ? "bor" : "yo'q"}</b>`,
+    `NATIVE_CHECKLIST_CHAT_ID: <code>${escapeHtml(env.NATIVE_CHECKLIST_CHAT_ID || "yo'q")}</code>`,
+    `TELEGRAM_ALLOWED_CHAT_IDS: <code>${escapeHtml(env.TELEGRAM_ALLOWED_CHAT_IDS || "yo'q")}</code>`,
+    "",
+    env.CHECKLIST_STATE
+      ? "Checklist holati /today qayta chaqirilganda saqlanishi kerak."
+      : "Cloudflare KV binding qo'shilmagan: CHECKLIST_STATE nomi bilan ulang.",
   ].join("\n");
 }
 
@@ -394,6 +415,11 @@ function wantsToday(text) {
 function wantsReset(text) {
   const normalized = text.toLowerCase().trim();
   return normalized === "/reset" || normalized.includes("reset") || normalized.includes("tozala");
+}
+
+function wantsStatus(text) {
+  const normalized = text.toLowerCase().trim();
+  return normalized === "/status" || normalized.startsWith("/status@");
 }
 
 function isAllowedChat(env, chatId) {
@@ -522,6 +548,11 @@ export default {
 
     if (!isBusinessMessage && !isAllowedChat(env, message.chat.id)) {
       await sendTelegram(env, message.chat.id, "Bu bot shaxsiy foydalanish uchun sozlangan.");
+      return new Response("OK");
+    }
+
+    if (wantsStatus(message.text)) {
+      await sendTelegram(env, message.chat.id, statusMessage(env, message.chat.id), workoutKeyboard());
       return new Response("OK");
     }
 

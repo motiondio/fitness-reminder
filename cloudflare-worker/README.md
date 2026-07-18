@@ -69,6 +69,7 @@ curl "https://api.telegram.org/botBOT_TOKEN/getWebhookInfo"
 - `checklist`
 - `/reset`
 - `/chatid`
+- `/status`
 - `/tomorrow`
 - `ertaga`
 - `/help`
@@ -124,6 +125,14 @@ Cloudflare Worker ichida:
 Shundan keyin bot har chat va har sana uchun checklist holatini 90 kun saqlaydi.
 
 `/reset` bugungi checklistni tozalaydi.
+
+Tekshirish:
+
+```text
+/status
+```
+
+Javobda `KV CHECKLIST_STATE: ulangan` chiqishi kerak. Agar `ulanmagan` chiqsa, binding nomi noto'g'ri yozilgan yoki Worker qayta deploy qilinmagan.
 
 Private group test:
 
