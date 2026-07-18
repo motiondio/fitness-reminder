@@ -7,6 +7,7 @@ Bu Worker Telegram botga yozilganda darhol javob berish uchun kerak.
 - `TELEGRAM_BOT_TOKEN`
 - `TELEGRAM_CHAT_ID`
 - `NATIVE_CHECKLIST_CHAT_ID`
+- `TELEGRAM_ALLOWED_CHAT_IDS`
 - `FITNESS_START_DATE`
 
 `FITNESS_START_DATE` qiymati: `2026-07-19`
@@ -35,6 +36,7 @@ Oddiy variable:
 
 - `FITNESS_START_DATE=2026-07-19`
 - `NATIVE_CHECKLIST_CHAT_ID=8967190826`
+- `TELEGRAM_ALLOWED_CHAT_IDS=8084782034,-1002781399618`
 
 ### GitHub repo orqali deploy
 
@@ -103,4 +105,5 @@ Private group test:
 2. @Ozish8haftabot ni group'ga qo'shing.
 3. Group ichida `/chatid` yozing.
 4. Bot qaytargan negative chat ID qiymatini Cloudflare'da `NATIVE_CHECKLIST_CHAT_ID` ga yozing.
-5. Botga `/today` yozib native checklistni test qiling.
+5. `TELEGRAM_ALLOWED_CHAT_IDS` ichiga shaxsiy chat ID va group ID ni vergul bilan yozing.
+6. Botga `/today` yozib native checklistni test qiling.

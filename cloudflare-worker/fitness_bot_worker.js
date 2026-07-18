@@ -292,6 +292,16 @@ function wantsToday(text) {
   );
 }
 
+function isAllowedChat(env, chatId) {
+  const allowed = [env.TELEGRAM_CHAT_ID, env.NATIVE_CHECKLIST_CHAT_ID, env.TELEGRAM_ALLOWED_CHAT_IDS]
+    .filter(Boolean)
+    .flatMap((value) => String(value).split(","))
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  return allowed.length === 0 || allowed.includes(String(chatId));
+}
+
 async function answerCallback(env, callbackQueryId, text) {
   await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
     method: "POST",
@@ -346,7 +356,7 @@ export default {
     const callback = update.callback_query;
     if (callback && callback.message && callback.data) {
       const chatId = callback.message.chat.id;
-      if (env.TELEGRAM_CHAT_ID && String(chatId) !== String(env.TELEGRAM_CHAT_ID)) {
+      if (!isAllowedChat(env, chatId)) {
         await answerCallback(env, callback.id, "Bu bot shaxsiy foydalanish uchun sozlangan.");
         return new Response("OK");
       }
@@ -389,7 +399,7 @@ export default {
       return new Response("OK");
     }
 
-    if (!isBusinessMessage && env.TELEGRAM_CHAT_ID && String(message.chat.id) !== String(env.TELEGRAM_CHAT_ID)) {
+    if (!isBusinessMessage && !isAllowedChat(env, message.chat.id)) {
       await sendTelegram(env, message.chat.id, "Bu bot shaxsiy foydalanish uchun sozlangan.");
       return new Response("OK");
     }
