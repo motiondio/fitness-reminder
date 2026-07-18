@@ -211,6 +211,55 @@ function buildNativeChecklist(targetDate, env) {
   };
 }
 
+function checklistTasks(targetDate, env) {
+  const plan = workoutPlanFor(targetDate, env);
+  if (!plan) {
+    return ["Progressni ko'rib chiqish"];
+  }
+
+  return [
+    "Warm-up: 5 daqiqa",
+    plan.workout,
+    `Treadmill: ${plan.treadmill}`,
+    `Zina: ${plan.stair}`,
+    "Cool-down: 3-5 daqiqa",
+    "Cho'zilish",
+    "3 litr suv",
+    "Oqsilga boy ovqat",
+    "8-10 ming qadam",
+    "7.5+ soat uyqu",
+    "Shirin ichimlik yo'q",
+  ];
+}
+
+function buildInlineChecklistText(targetDate, env, mask = 0) {
+  const plan = workoutPlanFor(targetDate, env);
+  const title = plan ? plan.title : "8 haftalik reja";
+  const tasks = checklistTasks(targetDate, env);
+  const completedCount = tasks.filter((_, index) => Boolean(mask & (1 << index))).length;
+
+  return [
+    `✅ <b>${escapeHtml(title)}</b>`,
+    `<code>${formatDate(targetDate)}</code>`,
+    "",
+    ...tasks.map((task, index) => `${mask & (1 << index) ? "✅" : "☐"} ${escapeHtml(task)}`),
+    "",
+    `<b>${completedCount} / ${tasks.length} bajarildi</b>`,
+  ].join("\n");
+}
+
+function inlineChecklistKeyboard(targetDate, env, mask = 0) {
+  const tasks = checklistTasks(targetDate, env);
+  const rows = tasks.map((task, index) => [
+    {
+      text: `${mask & (1 << index) ? "✅" : "☐"} ${task.slice(0, 32)}`,
+      callback_data: `toggle:${mask}:${index}`,
+    },
+  ]);
+  rows.push([{ text: "♻️ Reset", callback_data: "toggle:0:reset" }]);
+  return { inline_keyboard: rows };
+}
+
 function helpMessage() {
   return [
     "🤖 <b>Men 8 haftalik kardio reja botiman.</b>",
@@ -253,6 +302,20 @@ async function sendTelegram(env, chatId, text, replyMarkup = null) {
   }
 }
 
+async function editTelegramMessage(env, chatId, messageId, text, replyMarkup = null) {
+  const body = { chat_id: chatId, message_id: messageId, text, parse_mode: "HTML" };
+  if (replyMarkup) body.reply_markup = replyMarkup;
+
+  const response = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/editMessageText`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    throw new Error(`Telegram editMessageText failed: ${response.status}`);
+  }
+}
+
 async function sendNativeChecklist(env, businessConnectionId, chatId, targetDate) {
   const targetChatId = Number(env.NATIVE_CHECKLIST_CHAT_ID || env.TELEGRAM_BOT_ID || 8967190826);
   const body = {
@@ -270,6 +333,13 @@ async function sendNativeChecklist(env, businessConnectionId, chatId, targetDate
     const errorText = await response.text();
     throw new Error(`Telegram sendChecklist failed: ${response.status} ${errorText}`);
   }
+}
+
+async function sendInlineChecklist(env, chatId, targetDate, notice = null) {
+  if (notice) {
+    await sendTelegram(env, chatId, notice);
+  }
+  await sendTelegram(env, chatId, buildInlineChecklistText(targetDate, env), inlineChecklistKeyboard(targetDate, env));
 }
 
 function wantsChecklist(text) {
@@ -361,7 +431,19 @@ export default {
         return new Response("OK");
       }
 
-      if (callback.data === "done") {
+      if (callback.data.startsWith("toggle:")) {
+        const [, maskText, indexText] = callback.data.split(":");
+        const currentMask = Number(maskText || 0);
+        const nextMask = indexText === "reset" ? 0 : currentMask ^ (1 << Number(indexText));
+        await editTelegramMessage(
+          env,
+          chatId,
+          callback.message.message_id,
+          buildInlineChecklistText(tashkentDate(0), env, nextMask),
+          inlineChecklistKeyboard(tashkentDate(0), env, nextMask)
+        );
+        await answerCallback(env, callback.id, "Checklist yangilandi.");
+      } else if (callback.data === "done") {
         await answerCallback(env, callback.id, "Qabul qilindi. Bugungi odat saqlandi.");
       } else if (callback.data === "tomorrow") {
         await answerCallback(env, callback.id, "Ertangi reja yuborildi.");
@@ -408,7 +490,13 @@ export default {
       try {
         await sendNativeChecklist(env, businessConnectionId, message.chat.id, tashkentDate(0));
       } catch (error) {
-        await sendTelegram(env, message.chat.id, `Native checklist yuborilmadi:\n<code>${escapeHtml(error.message)}</code>`);
+        const notice = [
+          "Native checklist Telegram tomonidan rad etildi.",
+          "Inline checklist yuborildi.",
+          "",
+          `<code>${escapeHtml(error.message)}</code>`,
+        ].join("\n");
+        await sendInlineChecklist(env, message.chat.id, tashkentDate(0), notice);
       }
       return new Response("OK");
     }

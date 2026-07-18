@@ -99,6 +99,14 @@ Rasmiy Bot API bo'yicha:
 
 Eslatma: Business account o'ziga xabar yubora olmaydi. Shuning uchun native checklist target chat sifatida botning numeric ID qiymatiga yuboriladi: `8967190826`.
 
+Test natijalari:
+
+- Saved Messages / self chat: `messages must not be sent to self`
+- Bot chat: `BUSINESS_PEER_INVALID`
+- Private group / supergroup: `chat must be a private chat`
+
+Shuning uchun bot native checklist rad etilgan holatda avtomatik inline checklist yuboradi. Inline checklist Telegram native kartasi emas, lekin har bir band alohida tugma sifatida bosiladi va xabar edit bo'lib `☐` / `✅` holati yangilanadi.
+
 Private group test:
 
 1. Telegram'da yangi private group yarating.

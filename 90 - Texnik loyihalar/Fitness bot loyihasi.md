@@ -22,6 +22,8 @@ Bog'liq notelar:
 - Native checklist: `BUSINESS_CONNECTION_ID` Cloudflare variable sifatida qo'shilgandan keyin `/today` va `/checklist` uchun ishlaydi
 - Native checklist target: `8967190826`
 - Allowed chat IDs: `8084782034,-1002781399618`
+- Native checklist cheklovi: self, bot chat va group uchun Telegram API rad etdi
+- Fallback: inline bosiladigan checklist qo'shildi
 
 ## Keyingi bosqichlar
 
