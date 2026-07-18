@@ -248,6 +248,27 @@ function buildInlineChecklistText(targetDate, env, mask = 0) {
   ].join("\n");
 }
 
+function checklistKey(chatId, targetDate) {
+  return `checklist:${chatId}:${formatDate(targetDate)}`;
+}
+
+async function getChecklistMask(env, chatId, targetDate) {
+  if (!env.CHECKLIST_STATE) {
+    return 0;
+  }
+  const value = await env.CHECKLIST_STATE.get(checklistKey(chatId, targetDate));
+  return Number(value || 0);
+}
+
+async function setChecklistMask(env, chatId, targetDate, mask) {
+  if (!env.CHECKLIST_STATE) {
+    return;
+  }
+  await env.CHECKLIST_STATE.put(checklistKey(chatId, targetDate), String(mask), {
+    expirationTtl: 60 * 60 * 24 * 90,
+  });
+}
+
 function inlineChecklistKeyboard(targetDate, env, mask = 0) {
   const tasks = checklistTasks(targetDate, env);
   const rows = tasks.map((task, index) => [
@@ -262,14 +283,17 @@ function inlineChecklistKeyboard(targetDate, env, mask = 0) {
 
 function helpMessage() {
   return [
-    "🤖 <b>Men 8 haftalik kardio reja botiman.</b>",
+    "🤖 <b>8 haftalik marafon bot</b>",
     "",
-    "<b>Yozishingiz mumkin:</b>",
-    "• /today yoki bugun - bugungi reja",
-    "• /checklist yoki checklist - native checklist",
+    "<b>Asosiy buyruqlar:</b>",
+    "• /today - bugungi bosiladigan checklist",
+    "• /checklist - bugungi bosiladigan checklist",
+    "• /tomorrow - ertangi reja",
+    "• /reset - bugungi checklistni tozalash",
     "• /chatid - joriy chat ID",
-    "• /tomorrow yoki ertaga - ertangi reja",
-    "• /help - buyruqlar",
+    "• /help - yordam",
+    "",
+    "Progress saqlanishi uchun Cloudflare KV binding kerak: <code>CHECKLIST_STATE</code>.",
   ].join("\n");
 }
 
@@ -277,8 +301,8 @@ function workoutKeyboard() {
   return {
     inline_keyboard: [
       [
-        { text: "✅ Bajarildi", callback_data: "done" },
         { text: "📋 Bugun", callback_data: "today" },
+        { text: "♻️ Reset", callback_data: "reset_today" },
       ],
       [
         { text: "➡️ Ertaga", callback_data: "tomorrow" },
@@ -339,7 +363,8 @@ async function sendInlineChecklist(env, chatId, targetDate, notice = null) {
   if (notice) {
     await sendTelegram(env, chatId, notice);
   }
-  await sendTelegram(env, chatId, buildInlineChecklistText(targetDate, env), inlineChecklistKeyboard(targetDate, env));
+  const mask = await getChecklistMask(env, chatId, targetDate);
+  await sendTelegram(env, chatId, buildInlineChecklistText(targetDate, env, mask), inlineChecklistKeyboard(targetDate, env, mask));
 }
 
 function wantsChecklist(text) {
@@ -347,9 +372,13 @@ function wantsChecklist(text) {
   return (
     normalized === "/checklist" ||
     normalized.includes("checklist") ||
-    normalized.includes("cheklist") ||
-    normalized.includes("native")
+    normalized.includes("cheklist")
   );
+}
+
+function wantsNativeChecklist(text) {
+  const normalized = text.toLowerCase().trim();
+  return normalized === "/native" || normalized.includes("native");
 }
 
 function wantsToday(text) {
@@ -360,6 +389,11 @@ function wantsToday(text) {
     normalized.includes("nima qilish") ||
     normalized.includes("mashq")
   );
+}
+
+function wantsReset(text) {
+  const normalized = text.toLowerCase().trim();
+  return normalized === "/reset" || normalized.includes("reset") || normalized.includes("tozala");
 }
 
 function isAllowedChat(env, chatId) {
@@ -433,8 +467,11 @@ export default {
 
       if (callback.data.startsWith("toggle:")) {
         const [, maskText, indexText] = callback.data.split(":");
-        const currentMask = Number(maskText || 0);
+        const currentMask = env.CHECKLIST_STATE
+          ? await getChecklistMask(env, chatId, tashkentDate(0))
+          : Number(maskText || 0);
         const nextMask = indexText === "reset" ? 0 : currentMask ^ (1 << Number(indexText));
+        await setChecklistMask(env, chatId, tashkentDate(0), nextMask);
         await editTelegramMessage(
           env,
           chatId,
@@ -443,8 +480,10 @@ export default {
           inlineChecklistKeyboard(tashkentDate(0), env, nextMask)
         );
         await answerCallback(env, callback.id, "Checklist yangilandi.");
-      } else if (callback.data === "done") {
-        await answerCallback(env, callback.id, "Qabul qilindi. Bugungi odat saqlandi.");
+      } else if (callback.data === "reset_today") {
+        await setChecklistMask(env, chatId, tashkentDate(0), 0);
+        await sendInlineChecklist(env, chatId, tashkentDate(0), "Bugungi checklist tozalandi.");
+        await answerCallback(env, callback.id, "Checklist tozalandi.");
       } else if (callback.data === "tomorrow") {
         await answerCallback(env, callback.id, "Ertangi reja yuborildi.");
         await sendTelegram(env, chatId, buildWorkoutMessage(tashkentDate(1), env), workoutKeyboard());
@@ -453,7 +492,7 @@ export default {
         await sendTelegram(env, chatId, helpMessage(), workoutKeyboard());
       } else {
         await answerCallback(env, callback.id, "Bugungi reja yuborildi.");
-        await sendTelegram(env, chatId, buildWorkoutMessage(tashkentDate(0), env), workoutKeyboard());
+        await sendInlineChecklist(env, chatId, tashkentDate(0));
       }
       return new Response("OK");
     }
@@ -486,7 +525,18 @@ export default {
       return new Response("OK");
     }
 
-    if ((wantsChecklist(message.text) || wantsToday(message.text)) && businessConnectionId) {
+    if (normalizedText === "/start" || normalizedText === "/help" || normalizedText.includes("yordam")) {
+      await sendTelegram(env, message.chat.id, helpMessage(), workoutKeyboard());
+      return new Response("OK");
+    }
+
+    if (wantsReset(message.text)) {
+      await setChecklistMask(env, message.chat.id, tashkentDate(0), 0);
+      await sendInlineChecklist(env, message.chat.id, tashkentDate(0), "Bugungi checklist tozalandi.");
+      return new Response("OK");
+    }
+
+    if (wantsNativeChecklist(message.text) && businessConnectionId) {
       try {
         await sendNativeChecklist(env, businessConnectionId, message.chat.id, tashkentDate(0));
       } catch (error) {
@@ -498,6 +548,11 @@ export default {
         ].join("\n");
         await sendInlineChecklist(env, message.chat.id, tashkentDate(0), notice);
       }
+      return new Response("OK");
+    }
+
+    if (wantsChecklist(message.text) || wantsToday(message.text)) {
+      await sendInlineChecklist(env, message.chat.id, tashkentDate(0));
       return new Response("OK");
     }
 

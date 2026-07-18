@@ -67,6 +67,7 @@ curl "https://api.telegram.org/botBOT_TOKEN/getWebhookInfo"
 - `bugun nima qilishim kerak`
 - `/checklist`
 - `checklist`
+- `/reset`
 - `/chatid`
 - `/tomorrow`
 - `ertaga`
@@ -105,7 +106,24 @@ Test natijalari:
 - Bot chat: `BUSINESS_PEER_INVALID`
 - Private group / supergroup: `chat must be a private chat`
 
-Shuning uchun bot native checklist rad etilgan holatda avtomatik inline checklist yuboradi. Inline checklist Telegram native kartasi emas, lekin har bir band alohida tugma sifatida bosiladi va xabar edit bo'lib `☐` / `✅` holati yangilanadi.
+Shuning uchun asosiy flow inline checklistga o'tkazildi. Inline checklist Telegram native kartasi emas, lekin har bir band alohida tugma sifatida bosiladi va xabar edit bo'lib `☐` / `✅` holati yangilanadi.
+
+## Checklist holatini saqlash
+
+`/today` qayta chaqirilganda oldingi belgilangan bandlar yo'qolmasligi uchun Cloudflare KV kerak.
+
+Cloudflare Worker ichida:
+
+1. **Storage & Databases** -> **KV** orqali namespace yarating: `fitness_checklist_state`
+2. Worker -> **Settings** -> **Bindings** -> **Add binding**
+3. Binding type: **KV Namespace**
+4. Variable name: `CHECKLIST_STATE`
+5. KV namespace: `fitness_checklist_state`
+6. **Save and deploy**
+
+Shundan keyin bot har chat va har sana uchun checklist holatini 90 kun saqlaydi.
+
+`/reset` bugungi checklistni tozalaydi.
 
 Private group test:
 
