@@ -26,6 +26,8 @@ Bog'liq notelar:
 - Asosiy flow: inline bosiladigan checklist
 - Checklist state: Cloudflare KV binding `CHECKLIST_STATE` kerak
 - Diagnostika: `/status`
+- `/tomorrow` ham inline checklist yuboradi va ertangi sana uchun alohida state saqlaydi
+- Checklist tugmalari: task toggle, `✅ Hammasi`, `♻️ Reset`
 
 ## Keyingi bosqichlar
 

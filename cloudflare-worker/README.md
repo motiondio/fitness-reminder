@@ -125,6 +125,8 @@ Cloudflare Worker ichida:
 Shundan keyin bot har chat va har sana uchun checklist holatini 90 kun saqlaydi.
 
 `/reset` bugungi checklistni tozalaydi.
+`/tomorrow` ertangi checklistni alohida holat bilan yuboradi.
+Checklist tugmalarida `✅ Hammasi` va `♻️ Reset` bor.
 
 Tekshirish:
 

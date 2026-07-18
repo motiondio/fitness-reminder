@@ -118,6 +118,10 @@ function parseDate(value) {
   return new Date(year, month - 1, day);
 }
 
+function dateFromCallback(value) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) ? parseDate(value) : tashkentDate(0);
+}
+
 function escapeHtml(value) {
   return String(value)
     .replace(/&/g, "&amp;")
@@ -275,13 +279,18 @@ async function setChecklistMask(env, chatId, targetDate, mask) {
 
 function inlineChecklistKeyboard(targetDate, env, mask = 0) {
   const tasks = checklistTasks(targetDate, env);
+  const dateKey = formatDate(targetDate);
+  const allMask = (1 << tasks.length) - 1;
   const rows = tasks.map((task, index) => [
     {
       text: `${mask & (1 << index) ? "✅" : "☐"} ${task.slice(0, 32)}`,
-      callback_data: `toggle:${mask}:${index}`,
+      callback_data: `tgl:${dateKey}:${mask}:${index}`,
     },
   ]);
-  rows.push([{ text: "♻️ Reset", callback_data: "toggle:0:reset" }]);
+  rows.push([
+    { text: "✅ Hammasi", callback_data: `all:${dateKey}:${allMask}` },
+    { text: "♻️ Reset", callback_data: `rst:${dateKey}` },
+  ]);
   return { inline_keyboard: rows };
 }
 
@@ -323,10 +332,10 @@ function workoutKeyboard() {
     inline_keyboard: [
       [
         { text: "📋 Bugun", callback_data: "today" },
-        { text: "♻️ Reset", callback_data: "reset_today" },
+        { text: "➡️ Ertaga", callback_data: "tomorrow" },
       ],
       [
-        { text: "➡️ Ertaga", callback_data: "tomorrow" },
+        { text: "♻️ Reset", callback_data: "reset_today" },
         { text: "ℹ️ Yordam", callback_data: "help" },
       ],
     ],
@@ -412,6 +421,11 @@ function wantsToday(text) {
   );
 }
 
+function wantsTomorrow(text) {
+  const normalized = text.toLowerCase().trim();
+  return normalized === "/tomorrow" || normalized.includes("ertaga") || normalized.includes("tomorrow");
+}
+
 function wantsReset(text) {
   const normalized = text.toLowerCase().trim();
   return normalized === "/reset" || normalized.includes("reset") || normalized.includes("tozala");
@@ -491,7 +505,48 @@ export default {
         return new Response("OK");
       }
 
-      if (callback.data.startsWith("toggle:")) {
+      if (callback.data.startsWith("tgl:")) {
+        const [, dateText, maskText, indexText] = callback.data.split(":");
+        const targetDate = dateFromCallback(dateText);
+        const currentMask = env.CHECKLIST_STATE
+          ? await getChecklistMask(env, chatId, targetDate)
+          : Number(maskText || 0);
+        const nextMask = currentMask ^ (1 << Number(indexText));
+        await setChecklistMask(env, chatId, targetDate, nextMask);
+        await editTelegramMessage(
+          env,
+          chatId,
+          callback.message.message_id,
+          buildInlineChecklistText(targetDate, env, nextMask),
+          inlineChecklistKeyboard(targetDate, env, nextMask)
+        );
+        await answerCallback(env, callback.id, "Checklist yangilandi.");
+      } else if (callback.data.startsWith("rst:")) {
+        const [, dateText] = callback.data.split(":");
+        const targetDate = dateFromCallback(dateText);
+        await setChecklistMask(env, chatId, targetDate, 0);
+        await editTelegramMessage(
+          env,
+          chatId,
+          callback.message.message_id,
+          buildInlineChecklistText(targetDate, env, 0),
+          inlineChecklistKeyboard(targetDate, env, 0)
+        );
+        await answerCallback(env, callback.id, "Checklist tozalandi.");
+      } else if (callback.data.startsWith("all:")) {
+        const [, dateText, allMaskText] = callback.data.split(":");
+        const targetDate = dateFromCallback(dateText);
+        const nextMask = Number(allMaskText || 0);
+        await setChecklistMask(env, chatId, targetDate, nextMask);
+        await editTelegramMessage(
+          env,
+          chatId,
+          callback.message.message_id,
+          buildInlineChecklistText(targetDate, env, nextMask),
+          inlineChecklistKeyboard(targetDate, env, nextMask)
+        );
+        await answerCallback(env, callback.id, "Hammasi belgilandi.");
+      } else if (callback.data.startsWith("toggle:")) {
         const [, maskText, indexText] = callback.data.split(":");
         const currentMask = env.CHECKLIST_STATE
           ? await getChecklistMask(env, chatId, tashkentDate(0))
@@ -512,7 +567,7 @@ export default {
         await answerCallback(env, callback.id, "Checklist tozalandi.");
       } else if (callback.data === "tomorrow") {
         await answerCallback(env, callback.id, "Ertangi reja yuborildi.");
-        await sendTelegram(env, chatId, buildWorkoutMessage(tashkentDate(1), env), workoutKeyboard());
+        await sendInlineChecklist(env, chatId, tashkentDate(1));
       } else if (callback.data === "help") {
         await answerCallback(env, callback.id, "Yordam yuborildi.");
         await sendTelegram(env, chatId, helpMessage(), workoutKeyboard());
@@ -564,6 +619,11 @@ export default {
     if (wantsReset(message.text)) {
       await setChecklistMask(env, message.chat.id, tashkentDate(0), 0);
       await sendInlineChecklist(env, message.chat.id, tashkentDate(0), "Bugungi checklist tozalandi.");
+      return new Response("OK");
+    }
+
+    if (wantsTomorrow(message.text)) {
+      await sendInlineChecklist(env, message.chat.id, tashkentDate(1));
       return new Response("OK");
     }
 
