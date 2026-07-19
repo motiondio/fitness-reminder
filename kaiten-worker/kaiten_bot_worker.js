@@ -10,7 +10,7 @@ const CONFIG = {
   clientEndRow: 1000,
 };
 
-const APP_VERSION = "kaiten-miniapp-2026-07-19-14";
+const APP_VERSION = "kaiten-miniapp-2026-07-19-15";
 
 const ICON_PRESETS = [
   { value: "⭐️", label: "Syomka" },
@@ -1350,35 +1350,102 @@ function appHtml() {
       gap: .467em;
     }
     .icon-choice.active { outline: 2px solid var(--accent); }
-    .time-tabs {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: .467em;
+    .time-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 16;
+      display: none;
+      align-items: end;
+      justify-content: center;
+      padding: 14px;
+      background: rgba(0,0,0,.62);
     }
-    .time-tabs button.active,
-    .time-grid button.active,
-    .duration-grid button.active {
-      border-color: var(--accent);
-      background: var(--active);
+    .time-modal.open { display: flex; }
+    .time-sheet {
+      width: min(520px, 100%);
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: .933em;
+      box-shadow: 0 24px 80px rgba(0,0,0,.5);
     }
-    .time-grid {
+    .time-head {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(4.8em, 1fr));
-      gap: .4em;
-      max-height: 13.333em;
+      grid-template-columns: 3em 1fr 3em;
+      gap: .667em;
+      align-items: center;
+      margin-bottom: .8em;
+    }
+    .time-head strong {
+      text-align: center;
+      font-size: 1.067em;
+    }
+    .time-close,
+    .time-apply {
+      width: 3em;
+      height: 3em;
+      min-height: 3em;
+      padding: 0;
+      border-radius: 999px;
+      font-size: 1.2em;
+    }
+    .time-apply {
+      border-color: #ff9f0a;
+      background: #ff9f0a;
+      color: #fff;
+    }
+    .wheel-picker {
+      position: relative;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.333em;
+      height: 15.333em;
+      overflow: hidden;
+      -webkit-mask-image: linear-gradient(to bottom, transparent, #000 22%, #000 78%, transparent);
+      mask-image: linear-gradient(to bottom, transparent, #000 22%, #000 78%, transparent);
+    }
+    .wheel-highlight {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 50%;
+      height: 2.933em;
+      transform: translateY(-50%);
+      border-radius: 999px;
+      background: rgba(255,255,255,.08);
+      pointer-events: none;
+    }
+    html[data-theme="light"] .wheel-highlight {
+      background: rgba(15,23,42,.08);
+    }
+    .wheel-column {
+      position: relative;
+      z-index: 1;
+      height: 100%;
       overflow-y: auto;
-      padding: .533em 0;
+      padding: 6.2em 0;
       overscroll-behavior: contain;
+      scroll-snap-type: y mandatory;
+      scrollbar-width: none;
+      -webkit-overflow-scrolling: touch;
     }
-    .time-grid button,
-    .duration-grid button {
-      min-height: 2.467em;
-      padding: .4em .533em;
+    .wheel-column::-webkit-scrollbar { display: none; }
+    .wheel-option {
+      width: 100%;
+      min-height: 2.933em;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      scroll-snap-align: center;
+      color: var(--muted);
+      font-size: 1.733em;
+      font-weight: 650;
+      text-align: center;
+      transition: color .12s ease, transform .12s ease;
     }
-    .duration-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(6em, 1fr));
-      gap: .4em;
+    .wheel-option.active {
+      color: var(--text);
+      transform: scale(1.06);
     }
     .preview {
       padding: .8em;
@@ -1515,15 +1582,6 @@ function appHtml() {
           <input id="endTimeInput" type="text" inputmode="none" autocomplete="off" readonly placeholder="Tugash">
         </div>
         <div class="field full">
-          <label>Vaqt tanlash</label>
-          <div class="time-tabs">
-            <button type="button" id="startTimeTab" data-time-field="start">Boshlanish</button>
-            <button type="button" id="endTimeTab" data-time-field="end">Tugash</button>
-          </div>
-          <div id="timeGrid" class="time-grid"></div>
-          <div id="durationGrid" class="duration-grid"></div>
-        </div>
-        <div class="field full">
           <label>Mijoz</label>
           <div class="client-combobox">
             <input id="clientInput" autocomplete="off" placeholder="Mijoz nomi" required>
@@ -1573,6 +1631,21 @@ function appHtml() {
     </div>
   </div>
 
+  <div id="timeModal" class="time-modal" aria-hidden="true">
+    <div class="time-sheet">
+      <div class="time-head">
+        <button type="button" id="closeTimeModal" class="time-close">×</button>
+        <strong id="timeModalTitle">Boshlanish</strong>
+        <button type="button" id="applyTimeModal" class="time-apply">✓</button>
+      </div>
+      <div class="wheel-picker">
+        <div class="wheel-highlight"></div>
+        <div id="hourWheel" class="wheel-column" aria-label="Soat"></div>
+        <div id="minuteWheel" class="wheel-column" aria-label="Daqiqa"></div>
+      </div>
+    </div>
+  </div>
+
   <script>
     (function () {
       var tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
@@ -1592,10 +1665,13 @@ function appHtml() {
       var metaEl = document.getElementById("meta");
       var modalEl = document.getElementById("modal");
       var clientModalEl = document.getElementById("clientModal");
+      var timeModalEl = document.getElementById("timeModal");
       var adminPanel = document.getElementById("adminPanel");
       var settingsPanel = document.getElementById("settingsPanel");
       var clientSuggestions = document.getElementById("clientSuggestions");
       var activeTimeField = "start";
+      var pendingTime = { hour: 12, minute: 0 };
+      var wheelScrollTimers = {};
       var audioContext = null;
       var suppressClickUntil = 0;
       var dragState = null;
@@ -1777,16 +1853,6 @@ function appHtml() {
         return pad2(Math.floor(total / 60)) + ":" + pad2(total % 60);
       }
 
-      function timeOptions() {
-        var options = [];
-        for (var hour = 8; hour <= 23; hour += 1) {
-          options.push(pad2(hour) + ":00");
-          options.push(pad2(hour) + ":30");
-        }
-        options.unshift("07:00", "07:30");
-        return options;
-      }
-
       function splitTimeRange(value) {
         var parts = String(value || "").replace(/\\s+/g, "").replace(/[–—]/g, "-").split("-");
         return {
@@ -1811,67 +1877,128 @@ function appHtml() {
         return [selectedIcon ? selectedIcon + dateText : dateText, time, client].filter(Boolean).join(" ").trim();
       }
 
-      function renderTimePicker() {
-        var startInput = document.getElementById("startTimeInput");
-        var endInput = document.getElementById("endTimeInput");
-        var grid = document.getElementById("timeGrid");
-        var durationGrid = document.getElementById("durationGrid");
-        if (!startInput || !endInput || !grid || !durationGrid) return;
-        document.getElementById("startTimeTab").classList.toggle("active", activeTimeField === "start");
-        document.getElementById("endTimeTab").classList.toggle("active", activeTimeField === "end");
-        var activeValue = activeTimeField === "start" ? startInput.value : endInput.value;
-        grid.innerHTML = timeOptions().map(function (time) {
-          return '<button type="button" data-time-value="' + time + '" class="' + (time === activeValue ? "active" : "") + '">' + time + '</button>';
-        }).join("");
-        var durations = [
-          { minutes: 30, label: "+30 daq" },
-          { minutes: 60, label: "+1 soat" },
-          { minutes: 90, label: "+1.5 soat" },
-          { minutes: 120, label: "+2 soat" },
-          { minutes: 180, label: "+3 soat" },
-          { minutes: 240, label: "+4 soat" },
-        ];
-        durationGrid.innerHTML = durations.map(function (duration) {
-          var endValue = startInput.value ? addMinutes(startInput.value, duration.minutes) : "";
-          var active = endValue && endValue === endInput.value;
-          return '<button type="button" data-duration-minutes="' + duration.minutes + '" class="' + (active ? "active" : "") + '">' + duration.label + '</button>';
-        }).join("");
-      }
-
-      function setActiveTimeField(field) {
-        activeTimeField = field === "end" ? "end" : "start";
-        renderTimePicker();
-      }
-
-      function setSelectedTime(value) {
+      function timeParts(value, fallback) {
         var normalized = normalizeTimeInput(value);
-        if (!normalized) return;
+        if (normalized) {
+          var parts = normalized.split(":").map(Number);
+          return { hour: parts[0], minute: parts[1] };
+        }
+        return fallback || { hour: 12, minute: 0 };
+      }
+
+      function timeFromParts(parts) {
+        return pad2(parts.hour) + ":" + pad2(parts.minute);
+      }
+
+      function numberOptions(from, to) {
+        var options = [];
+        for (var value = from; value <= to; value += 1) {
+          options.push(value);
+        }
+        return options;
+      }
+
+      function renderWheelOptions(wheel, values, selected, type) {
+        wheel.innerHTML = values.map(function (value) {
+          return '<button type="button" class="wheel-option ' + (value === selected ? "active" : "") + '" data-wheel-type="' + type + '" data-wheel-value="' + value + '">' + pad2(value) + '</button>';
+        }).join("");
+      }
+
+      function markWheelActive(wheel, selected) {
+        wheel.querySelectorAll(".wheel-option").forEach(function (option) {
+          option.classList.toggle("active", Number(option.getAttribute("data-wheel-value")) === Number(selected));
+        });
+      }
+
+      function centerWheelOption(wheel, value, smooth) {
+        var option = wheel.querySelector('[data-wheel-value="' + Number(value) + '"]');
+        if (!option) return;
+        requestAnimationFrame(function () {
+          option.scrollIntoView({ block: "center", behavior: smooth ? "smooth" : "auto" });
+        });
+      }
+
+      function renderTimeWheel() {
+        var hourWheel = document.getElementById("hourWheel");
+        var minuteWheel = document.getElementById("minuteWheel");
+        document.getElementById("timeModalTitle").textContent = activeTimeField === "end" ? "Tugash" : "Boshlanish";
+        renderWheelOptions(hourWheel, numberOptions(0, 23), pendingTime.hour, "hour");
+        renderWheelOptions(minuteWheel, numberOptions(0, 59), pendingTime.minute, "minute");
+        centerWheelOption(hourWheel, pendingTime.hour, false);
+        centerWheelOption(minuteWheel, pendingTime.minute, false);
+      }
+
+      function nearestWheelValue(wheel) {
+        var center = wheel.getBoundingClientRect().top + wheel.clientHeight / 2;
+        var nearest = null;
+        var nearestDistance = Infinity;
+        wheel.querySelectorAll(".wheel-option").forEach(function (option) {
+          var rect = option.getBoundingClientRect();
+          var distance = Math.abs(rect.top + rect.height / 2 - center);
+          if (distance < nearestDistance) {
+            nearestDistance = distance;
+            nearest = Number(option.getAttribute("data-wheel-value"));
+          }
+        });
+        return nearest;
+      }
+
+      function syncWheelSelection(wheel, type) {
+        var value = nearestWheelValue(wheel);
+        if (value == null) return;
+        if (type === "hour") {
+          pendingTime.hour = value;
+        } else {
+          pendingTime.minute = value;
+        }
+        markWheelActive(wheel, value);
+      }
+
+      function scheduleWheelSync(wheel, type) {
+        clearTimeout(wheelScrollTimers[type]);
+        wheelScrollTimers[type] = setTimeout(function () {
+          syncWheelSelection(wheel, type);
+        }, 80);
+      }
+
+      function openTimeModal(field) {
+        activeTimeField = field === "end" ? "end" : "start";
         var startInput = document.getElementById("startTimeInput");
         var endInput = document.getElementById("endTimeInput");
-        if (activeTimeField === "start") {
-          startInput.value = normalized;
-          if (!endInput.value) {
-            endInput.value = addMinutes(normalized, 60);
-          }
-        } else {
-          endInput.value = normalized;
+        var fallback = { hour: 12, minute: 0 };
+        if (activeTimeField === "end" && startInput.value) {
+          fallback = timeParts(addMinutes(startInput.value, 60));
         }
-        updatePreview();
-        renderTimePicker();
+        var currentValue = activeTimeField === "end" ? endInput.value : startInput.value;
+        pendingTime = timeParts(currentValue, fallback);
+        renderTimeWheel();
+        timeModalEl.classList.add("open");
+        timeModalEl.setAttribute("aria-hidden", "false");
         haptic("light");
       }
 
-      function setDuration(minutes) {
-        var start = document.getElementById("startTimeInput").value;
-        if (!start) {
-          setStatus("Avval boshlanish vaqtini tanlang.", true);
-          setActiveTimeField("start");
-          return;
+      function closeTimeModal() {
+        timeModalEl.classList.remove("open");
+        timeModalEl.setAttribute("aria-hidden", "true");
+      }
+
+      function applyTimeSelection() {
+        syncWheelSelection(document.getElementById("hourWheel"), "hour");
+        syncWheelSelection(document.getElementById("minuteWheel"), "minute");
+        var selected = timeFromParts(pendingTime);
+        var startInput = document.getElementById("startTimeInput");
+        var endInput = document.getElementById("endTimeInput");
+        if (activeTimeField === "end") {
+          endInput.value = selected;
+        } else {
+          startInput.value = selected;
+          if (!endInput.value) {
+            endInput.value = addMinutes(selected, 60);
+          }
         }
-        document.getElementById("endTimeInput").value = addMinutes(start, Number(minutes || 0));
-        setActiveTimeField("end");
         updatePreview();
-        haptic("light");
+        closeTimeModal();
+        haptic("success");
       }
 
       async function api(path, options) {
@@ -2291,7 +2418,6 @@ function appHtml() {
           document.getElementById("dateInput").required = false;
           document.getElementById("startTimeInput").required = false;
           document.getElementById("clientInput").required = false;
-          activeTimeField = parsedTime.end ? "end" : "start";
         } else {
           document.getElementById("cardForm").reset();
           selectedIcon = "⭐️";
@@ -2301,11 +2427,10 @@ function appHtml() {
           document.getElementById("dateInput").required = true;
           document.getElementById("startTimeInput").required = true;
           document.getElementById("clientInput").required = true;
-          activeTimeField = "start";
         }
+        activeTimeField = "start";
         document.getElementById("commentInput").value = "";
         updatePreview();
-        renderTimePicker();
         modalEl.classList.add("open");
       }
 
@@ -2412,6 +2537,8 @@ function appHtml() {
       });
       document.getElementById("closeModal").addEventListener("click", closeModal);
       document.getElementById("closeClientModal").addEventListener("click", closeClientModal);
+      document.getElementById("closeTimeModal").addEventListener("click", closeTimeModal);
+      document.getElementById("applyTimeModal").addEventListener("click", applyTimeSelection);
       document.getElementById("cardForm").addEventListener("submit", saveCard);
       document.getElementById("clientForm").addEventListener("submit", saveClient);
       document.getElementById("refreshClientsBtn").addEventListener("click", async function () {
@@ -2430,29 +2557,36 @@ function appHtml() {
       ["dateInput", "startTimeInput", "endTimeInput"].forEach(function (id) {
         document.getElementById(id).addEventListener("input", updatePreview);
       });
-      ["startTimeInput", "endTimeInput"].forEach(function (id) {
-        document.getElementById(id).addEventListener("click", function () {
-          setActiveTimeField(id === "endTimeInput" ? "end" : "start");
+      document.getElementById("startTimeInput").addEventListener("click", function () {
+        openTimeModal("start");
+      });
+      document.getElementById("endTimeInput").addEventListener("click", function () {
+        openTimeModal("end");
+      });
+      timeModalEl.addEventListener("click", function (event) {
+        if (event.target === timeModalEl) {
+          closeTimeModal();
+        }
+      });
+      ["hourWheel", "minuteWheel"].forEach(function (id) {
+        var wheel = document.getElementById(id);
+        var type = id === "hourWheel" ? "hour" : "minute";
+        wheel.addEventListener("scroll", function () {
+          scheduleWheelSync(wheel, type);
         });
-        document.getElementById(id).addEventListener("focus", function () {
-          setActiveTimeField(id === "endTimeInput" ? "end" : "start");
+        wheel.addEventListener("click", function (event) {
+          var button = event.target.closest("[data-wheel-value]");
+          if (!button) return;
+          var value = Number(button.getAttribute("data-wheel-value"));
+          if (type === "hour") {
+            pendingTime.hour = value;
+          } else {
+            pendingTime.minute = value;
+          }
+          markWheelActive(wheel, value);
+          centerWheelOption(wheel, value, true);
+          haptic("light");
         });
-      });
-      document.getElementById("startTimeTab").addEventListener("click", function () {
-        setActiveTimeField("start");
-      });
-      document.getElementById("endTimeTab").addEventListener("click", function () {
-        setActiveTimeField("end");
-      });
-      document.getElementById("timeGrid").addEventListener("click", function (event) {
-        var button = event.target.closest("[data-time-value]");
-        if (!button) return;
-        setSelectedTime(button.getAttribute("data-time-value"));
-      });
-      document.getElementById("durationGrid").addEventListener("click", function (event) {
-        var button = event.target.closest("[data-duration-minutes]");
-        if (!button) return;
-        setDuration(button.getAttribute("data-duration-minutes"));
       });
       document.getElementById("clientInput").addEventListener("input", function () {
         updatePreview();

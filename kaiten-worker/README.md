@@ -114,7 +114,7 @@ curl -X POST "https://api.telegram.org/bot$BOT_TOKEN/setChatMenuButton" \
 - Mini App ichidan mijozlar bazasini qo'lda refresh qilish
 - Yangi mijozni alohida menu orqali `MIJOZLAR BAZASI!A6:A1000` ichidagi birinchi bo'sh qatorga yozish
 - Card title edit qilish
-- Syomka yaratishda boshlanish va tugash vaqtini readonly field + tezkor vaqt grididan tanlash
+- Syomka yaratishda boshlanish va tugash vaqtini iPhone budilnikiga o'xshash soat/daqiqa wheel picker orqali tanlash
 - Mavjud card title ichidan icon, sana, vaqt va mijozni ajratib olish
 - Cardni ustundan ustunga o'tkazish
 - Cardni uzoq bosib turib boshqa ustunga drag qilish
