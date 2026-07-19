@@ -22,6 +22,12 @@ Bu Worker Telegram botga yozilganda darhol javob berish uchun kerak.
 - `PRAYER_REMINDER_INTERVAL_MINUTES`
 - `PRAYER_TIMES`
 - `PRAYER_DISABLE_FALLBACK`
+- `MINI_APP_URL`
+- `MINI_APP_CHAT_ID`
+- `MINI_APP_FITNESS_CHAT_ID`
+- `MINI_APP_ALLOWED_USER_IDS`
+- `MINI_APP_AUTH_MAX_AGE_SECONDS`
+- `MINI_APP_AUTH_DISABLED`
 
 `FITNESS_START_DATE` qiymati: `2026-07-19`
 
@@ -67,6 +73,8 @@ Oddiy variable:
 - `NATIVE_CHECKLIST_CHAT_ID=8967190826`
 - `TELEGRAM_ALLOWED_CHAT_IDS=8084782034,-1002781399618`
 - `TELEGRAM_TOPIC_ID=topic_id`
+- `MINI_APP_URL=https://fitness-reminder.shahzod-rmusic.workers.dev/app`
+- `MINI_APP_ALLOWED_USER_IDS=8084782034`
 
 ### GitHub repo orqali deploy
 
@@ -99,6 +107,7 @@ curl -X POST "https://api.telegram.org/botBOT_TOKEN/setMyCommands" \
   -d '{
     "commands": [
       {"command": "start", "description": "Bot menyusi"},
+      {"command": "app", "description": "Telegram Mini App"},
       {"command": "today", "description": "Bugungi fitness checklist"},
       {"command": "tomorrow", "description": "Ertangi fitness checklist"},
       {"command": "namoz", "description": "Bugungi namoz vaqtlari"},
@@ -110,8 +119,25 @@ curl -X POST "https://api.telegram.org/botBOT_TOKEN/setMyCommands" \
   }'
 ```
 
+Mini Appni Telegram menu buttonga qo'yish:
+
+```bash
+curl -X POST "https://api.telegram.org/botBOT_TOKEN/setChatMenuButton" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "menu_button": {
+      "type": "web_app",
+      "text": "Mini App",
+      "web_app": {
+        "url": "https://fitness-reminder.shahzod-rmusic.workers.dev/app"
+      }
+    }
+  }'
+```
+
 ## Bot buyruqlari
 
+- `/app`
 - `/today`
 - `bugun nima qilishim kerak`
 - `/checklist`
@@ -130,6 +156,46 @@ curl -X POST "https://api.telegram.org/botBOT_TOKEN/setMyCommands" \
 - `/qazo_set vitr 10`
 - `/qazo_bulk bomdod=10 peshin=10 asr=10 shom=10 xufton=10 vitr=10`
 - `/help`
+
+## Telegram Mini App
+
+Worker ichida Mini App ham bor:
+
+```text
+https://fitness-reminder.shahzod-rmusic.workers.dev/app
+```
+
+Mini App bo'limlari:
+
+- Fitness: bugungi checklistni bosib belgilash, `Hammasi`, `Reset`
+- Namoz: bugungi namoz vaqtlari, `O'qidim`, `Qazo`
+- Qazo: Bomdod, Peshin, Asr, Shom, Xufton, Vitr sonlarini `+`, `-` yoki qo'lda raqam kiritib saqlash
+
+Mini App API endpointlari:
+
+- `GET /api/app-state`
+- `POST /api/checklist-toggle`
+- `POST /api/prayer-done`
+- `POST /api/qazo-adjust`
+- `POST /api/qazo-bulk`
+
+Xavfsizlik:
+
+- Mini App API Telegram `initData` imzosini tekshiradi.
+- `MINI_APP_ALLOWED_USER_IDS=8084782034` qo'yilsa, faqat shu Telegram user ID ishlata oladi.
+- `MINI_APP_AUTH_DISABLED=1` faqat local test uchun. Production Worker'da buni qo'ymang.
+
+Telegram `web_app` tugmasi private chatda ishlaydi. Supergroup/topic ichida bot menyusi eski inline tugmalar bilan qoladi. Mini Appni ochish uchun botga private chatda yozing:
+
+```text
+/app
+```
+
+State qayerga yoziladi:
+
+- `MINI_APP_CHAT_ID` bo'lmasa, qazo va namoz state `PRAYER_CHAT_ID` yoki `TELEGRAM_CHAT_ID` bo'yicha ishlaydi.
+- `MINI_APP_FITNESS_CHAT_ID` bo'lmasa, fitness checklist ham shu chat ID bo'yicha ishlaydi.
+- Hammasi `CHECKLIST_STATE` KV binding ichida saqlanadi.
 
 ## Namoz eslatmalari
 

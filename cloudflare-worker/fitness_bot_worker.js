@@ -402,6 +402,7 @@ function helpMessage() {
     "🤖 <b>8 haftalik marafon bot</b>",
     "",
     "<b>Asosiy buyruqlar:</b>",
+    "• /app - Telegram Mini App",
     "• /today - bugungi bosiladigan checklist",
     "• /checklist - bugungi bosiladigan checklist",
     "• /tomorrow - ertangi reja",
@@ -438,6 +439,8 @@ function statusMessage(env, chatId) {
     `PRAYER_COUNTRY: <code>${escapeHtml(env.PRAYER_COUNTRY || "Uzbekistan")}</code>`,
     `PRAYER_REMINDER_INTERVAL_MINUTES: <code>${escapeHtml(prayerReminderIntervalMinutes(env))}</code>`,
     `PRAYER_TIMES: <b>${env.PRAYER_TIMES ? "manual" : "API"}</b>`,
+    `MINI_APP_URL: <code>${escapeHtml(env.MINI_APP_URL || "/app")}</code>`,
+    `MINI_APP_CHAT_ID: <code>${escapeHtml(miniAppChatId(env) || "yo'q")}</code>`,
     "",
     env.CHECKLIST_STATE
       ? "Checklist holati /today qayta chaqirilganda saqlanishi kerak."
@@ -453,9 +456,8 @@ function threadOptions(threadId = null) {
   return threadId ? { message_thread_id: Number(threadId) } : {};
 }
 
-function workoutKeyboard() {
-  return {
-    inline_keyboard: [
+function workoutKeyboard(env = {}, requestUrl = null, allowWebApp = false) {
+  const rows = [
       [
         { text: "📋 Bugun", callback_data: "today" },
         { text: "➡️ Ertaga", callback_data: "tomorrow" },
@@ -468,8 +470,12 @@ function workoutKeyboard() {
         { text: "🕌 Namoz", callback_data: "namoz:today" },
         { text: "🧭 Qazo", callback_data: "qz:show" },
       ],
-    ],
-  };
+    ];
+  const appUrl = miniAppUrl(env, requestUrl);
+  if (allowWebApp && appUrl) {
+    rows.unshift([{ text: "📱 Mini App", web_app: { url: appUrl } }]);
+  }
+  return { inline_keyboard: rows };
 }
 
 async function sendTelegram(env, chatId, text, replyMarkup = null, options = {}) {
@@ -1353,6 +1359,824 @@ function qazoBulkTemplateMessage() {
   ].join("\n");
 }
 
+function jsonResponse(data, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "no-store",
+    },
+  });
+}
+
+async function readJsonBody(request) {
+  try {
+    return await request.json();
+  } catch (_) {
+    return {};
+  }
+}
+
+function bytesToHex(bytes) {
+  return [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+async function hmacSha256(keyBytes, text) {
+  const key = await crypto.subtle.importKey(
+    "raw",
+    keyBytes,
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  const signature = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(text));
+  return new Uint8Array(signature);
+}
+
+function constantTimeEqual(left, right) {
+  if (left.length !== right.length) {
+    return false;
+  }
+  let result = 0;
+  for (let index = 0; index < left.length; index += 1) {
+    result |= left.charCodeAt(index) ^ right.charCodeAt(index);
+  }
+  return result === 0;
+}
+
+async function verifyTelegramWebAppInitData(initData, env) {
+  if (env.MINI_APP_AUTH_DISABLED === "1") {
+    return { ok: true, user: { id: "dev" }, dev: true };
+  }
+  if (!initData || !env.TELEGRAM_BOT_TOKEN) {
+    return { ok: false, error: "Mini App Telegram ichidan ochilishi kerak." };
+  }
+
+  const params = new URLSearchParams(initData);
+  const hash = params.get("hash");
+  if (!hash) {
+    return { ok: false, error: "Telegram initData hash topilmadi." };
+  }
+  params.delete("hash");
+
+  const authDate = Number(params.get("auth_date") || 0);
+  const maxAge = Number(env.MINI_APP_AUTH_MAX_AGE_SECONDS || 60 * 60 * 24 * 7);
+  if (authDate && Date.now() / 1000 - authDate > maxAge) {
+    return { ok: false, error: "Telegram initData muddati o'tgan." };
+  }
+
+  const dataCheckString = [...params.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([key, value]) => `${key}=${value}`)
+    .join("\n");
+  const secret = await hmacSha256(new TextEncoder().encode("WebAppData"), env.TELEGRAM_BOT_TOKEN);
+  const calculatedHash = bytesToHex(await hmacSha256(secret, dataCheckString));
+
+  if (!constantTimeEqual(calculatedHash, hash)) {
+    return { ok: false, error: "Telegram initData noto'g'ri." };
+  }
+
+  let user = null;
+  try {
+    user = JSON.parse(params.get("user") || "null");
+  } catch (_) {
+    user = null;
+  }
+  return { ok: true, user };
+}
+
+function isAllowedMiniAppUser(auth, env) {
+  if (auth.dev) {
+    return true;
+  }
+
+  const userId = auth.user?.id;
+  if (!userId) {
+    return false;
+  }
+
+  const allowed = [
+    env.MINI_APP_ALLOWED_USER_IDS,
+    env.TELEGRAM_CHAT_ID,
+    env.NATIVE_CHECKLIST_CHAT_ID,
+    env.TELEGRAM_ALLOWED_CHAT_IDS,
+  ]
+    .filter(Boolean)
+    .flatMap((value) => String(value).split(","))
+    .map((value) => value.trim())
+    .filter((value) => value && !value.startsWith("-"));
+
+  return allowed.length === 0 || allowed.includes(String(userId));
+}
+
+function miniAppChatId(env) {
+  return env.MINI_APP_CHAT_ID || prayerChatId(env) || env.TELEGRAM_CHAT_ID;
+}
+
+function miniAppFitnessChatId(env) {
+  return env.MINI_APP_FITNESS_CHAT_ID || miniAppChatId(env);
+}
+
+function miniAppUrl(env, requestUrl = null) {
+  if (env.MINI_APP_URL) {
+    return env.MINI_APP_URL;
+  }
+  if (requestUrl) {
+    return new URL("/app", requestUrl).toString();
+  }
+  return null;
+}
+
+async function buildMiniAppState(env) {
+  const nowParts = tashkentNowParts();
+  const targetDate = parseDate(nowParts.dateKey);
+  const chatId = miniAppChatId(env);
+  const fitnessChatId = miniAppFitnessChatId(env);
+  const plan = workoutPlanFor(targetDate, env);
+  const tasks = checklistTasks(targetDate, env);
+  const mask = await getChecklistMask(env, fitnessChatId, targetDate);
+  const schedule = await getPrayerSchedule(env, nowParts.dateKey);
+  const counts = await getQazoCounts(env, chatId);
+  const prayerRows = [];
+
+  for (const prayer of schedule.timings) {
+    const doneStatus = await prayerDoneStatus(env, chatId, schedule.dateKey, prayer.key);
+    prayerRows.push({
+      key: prayer.key,
+      label: prayer.label,
+      time: prayer.time,
+      doneStatus,
+      marker: prayerStatusMarker(doneStatus, nowParts.minutes >= prayer.minute),
+      isDue: nowParts.minutes >= prayer.minute,
+      isOpen: isPrayerReminderWindowOpen(schedule, prayer, nowParts.minutes),
+    });
+  }
+
+  return {
+    now: {
+      date: nowParts.dateKey,
+      time: `${String(nowParts.hour).padStart(2, "0")}:${String(nowParts.minute).padStart(2, "0")}`,
+    },
+    chat: {
+      id: chatId,
+      fitnessChatId,
+      threadId: prayerThreadId(env),
+    },
+    fitness: {
+      date: formatDate(targetDate),
+      title: plan?.title || "8 haftalik reja",
+      workout: plan?.workout || "Progressni ko'rib chiqish",
+      treadmill: plan?.treadmill || "",
+      stair: plan?.stair || "",
+      completed: tasks.filter((_, index) => Boolean(mask & (1 << index))).length,
+      total: tasks.length,
+      tasks: tasks.map((task, index) => ({
+        index,
+        text: task,
+        done: Boolean(mask & (1 << index)),
+      })),
+    },
+    prayer: {
+      date: schedule.dateKey,
+      city: schedule.city,
+      source: schedule.source,
+      sunrise: schedule.sunrise,
+      rows: prayerRows,
+    },
+    qazo: {
+      total: qazoTotal(counts),
+      counts: QAZO_PRAYERS.map((prayer) => ({
+        key: prayer.key,
+        label: prayer.label,
+        count: counts[prayer.key] || 0,
+      })),
+    },
+  };
+}
+
+async function handleMiniAppApi(request, env) {
+  const auth = await verifyTelegramWebAppInitData(request.headers.get("x-telegram-init-data"), env);
+  if (!auth.ok) {
+    return jsonResponse({ ok: false, error: auth.error }, 401);
+  }
+  if (!isAllowedMiniAppUser(auth, env)) {
+    return jsonResponse({ ok: false, error: "Bu Mini App shaxsiy foydalanish uchun sozlangan." }, 403);
+  }
+
+  const url = new URL(request.url);
+  const chatId = miniAppChatId(env);
+  const fitnessChatId = miniAppFitnessChatId(env);
+  const threadId = prayerThreadId(env);
+  if (!chatId || !fitnessChatId) {
+    return jsonResponse({ ok: false, error: "MINI_APP_CHAT_ID yoki TELEGRAM_CHAT_ID sozlanmagan." }, 500);
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/app-state") {
+    return jsonResponse({ ok: true, state: await buildMiniAppState(env) });
+  }
+  if (request.method !== "POST") {
+    return jsonResponse({ ok: false, error: "Method not allowed" }, 405);
+  }
+
+  const body = await readJsonBody(request);
+
+  if (url.pathname === "/api/checklist-toggle") {
+    const targetDate = body.date ? dateFromCallback(body.date) : tashkentDate(0);
+    const tasks = checklistTasks(targetDate, env);
+    const allMask = (1 << tasks.length) - 1;
+    const currentMask = await getChecklistMask(env, fitnessChatId, targetDate);
+    let nextMask = currentMask;
+
+    if (body.action === "reset") {
+      nextMask = 0;
+    } else if (body.action === "all") {
+      nextMask = allMask;
+    } else {
+      const index = Number(body.index);
+      if (!Number.isInteger(index) || index < 0 || index >= tasks.length) {
+        return jsonResponse({ ok: false, error: "Checklist bandi noto'g'ri." }, 400);
+      }
+      nextMask = typeof body.done === "boolean"
+        ? body.done ? currentMask | (1 << index) : currentMask & ~(1 << index)
+        : currentMask ^ (1 << index);
+    }
+
+    await setChecklistMask(env, fitnessChatId, targetDate, nextMask);
+    return jsonResponse({ ok: true, state: await buildMiniAppState(env) });
+  }
+
+  if (url.pathname === "/api/qazo-adjust") {
+    const prayer = prayerByName(body.key);
+    const delta = Number(body.delta);
+    if (!prayer || !Number.isFinite(delta)) {
+      return jsonResponse({ ok: false, error: "Qazo bandi noto'g'ri." }, 400);
+    }
+    await adjustQazoCount(env, chatId, prayer.key, Math.trunc(delta));
+    await upsertQazoDashboard(env, chatId, threadId, "Mini App orqali yangilandi.");
+    return jsonResponse({ ok: true, state: await buildMiniAppState(env) });
+  }
+
+  if (url.pathname === "/api/qazo-bulk") {
+    const rawCounts = body.counts || {};
+    for (const [key, value] of Object.entries(rawCounts)) {
+      const prayer = prayerByName(key);
+      const count = Number(value);
+      if (prayer && Number.isFinite(count)) {
+        await setQazoCount(env, chatId, prayer.key, Math.max(0, Math.floor(count)));
+      }
+    }
+    await upsertQazoDashboard(env, chatId, threadId, "Mini App orqali qazo sonlari kiritildi.");
+    return jsonResponse({ ok: true, state: await buildMiniAppState(env) });
+  }
+
+  if (url.pathname === "/api/prayer-done") {
+    const dateKey = /^\d{4}-\d{2}-\d{2}$/.test(body.date) ? body.date : tashkentNowParts().dateKey;
+    const schedule = await getPrayerSchedule(env, dateKey);
+    const prayer = prayerFromSchedule(schedule, body.key);
+    if (!prayer) {
+      return jsonResponse({ ok: false, error: "Namoz topilmadi." }, 400);
+    }
+    const previousStatus = await prayerDoneStatus(env, chatId, dateKey, prayer.key);
+    if (body.status === "qazo") {
+      const qazoKeys = missedQazoKeys(prayer.key, prayer.key === "isha");
+      if (previousStatus !== "qazo" && previousStatus !== "auto_qazo") {
+        for (const key of qazoKeys) {
+          await adjustQazoCount(env, chatId, key, 1);
+        }
+      }
+      await markPrayerDone(env, chatId, dateKey, prayer.key, "qazo");
+    } else {
+      await markPrayerDone(env, chatId, dateKey, prayer.key, "done");
+    }
+    await upsertQazoDashboard(env, chatId, threadId, "Mini App orqali namoz holati yangilandi.");
+    return jsonResponse({ ok: true, state: await buildMiniAppState(env) });
+  }
+
+  return jsonResponse({ ok: false, error: "Endpoint topilmadi." }, 404);
+}
+
+function miniAppHtml() {
+  return new Response(`<!doctype html>
+<html lang="uz">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>8 haftalik marafon</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: var(--tg-theme-bg-color, #f4f6f8);
+      --surface: var(--tg-theme-secondary-bg-color, #ffffff);
+      --surface-strong: rgba(44, 80, 132, 0.12);
+      --text: var(--tg-theme-text-color, #16202a);
+      --muted: var(--tg-theme-hint-color, #6b7280);
+      --line: rgba(127, 127, 127, 0.22);
+      --button: var(--tg-theme-button-color, #2f6fed);
+      --button-text: var(--tg-theme-button-text-color, #ffffff);
+      --ok: #16803c;
+      --danger: #b3261e;
+      --radius: 8px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    }
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 16px;
+      letter-spacing: 0;
+    }
+    .shell {
+      width: min(760px, 100%);
+      margin: 0 auto;
+      padding: calc(14px + env(safe-area-inset-top)) 14px calc(22px + env(safe-area-inset-bottom));
+    }
+    .topbar {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px;
+      align-items: center;
+      padding: 4px 0 12px;
+    }
+    h1 {
+      margin: 0;
+      font-size: 22px;
+      line-height: 1.15;
+    }
+    .meta {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.4;
+      margin-top: 4px;
+    }
+    .tabs {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 4px;
+      position: sticky;
+      top: 0;
+      z-index: 2;
+    }
+    button {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+      color: var(--text);
+      min-height: 44px;
+      padding: 10px 12px;
+      font: inherit;
+      font-weight: 650;
+      cursor: pointer;
+    }
+    button.primary {
+      background: var(--button);
+      border-color: var(--button);
+      color: var(--button-text);
+    }
+    button.subtle {
+      background: transparent;
+    }
+    button.danger {
+      color: var(--danger);
+    }
+    button:disabled {
+      opacity: 0.55;
+      cursor: default;
+    }
+    .tabs button {
+      border: 0;
+      min-height: 38px;
+    }
+    .tabs button.active {
+      background: var(--button);
+      color: var(--button-text);
+    }
+    .panel {
+      margin-top: 12px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .panel-head {
+      padding: 14px;
+      border-bottom: 1px solid var(--line);
+      display: grid;
+      gap: 6px;
+    }
+    h2 {
+      margin: 0;
+      font-size: 18px;
+      line-height: 1.2;
+    }
+    .summary {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.35;
+    }
+    .progress {
+      height: 8px;
+      background: var(--surface-strong);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+    .progress span {
+      display: block;
+      height: 100%;
+      width: 0%;
+      background: var(--ok);
+    }
+    .list {
+      display: grid;
+    }
+    .row {
+      display: grid;
+      grid-template-columns: 28px 1fr auto;
+      gap: 10px;
+      align-items: center;
+      width: 100%;
+      border: 0;
+      border-bottom: 1px solid var(--line);
+      border-radius: 0;
+      background: transparent;
+      text-align: left;
+      min-height: 52px;
+      padding: 10px 14px;
+      font-weight: 550;
+    }
+    .row:last-child {
+      border-bottom: 0;
+    }
+    .check {
+      width: 22px;
+      height: 22px;
+      border: 2px solid var(--line);
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      color: var(--button-text);
+      font-size: 14px;
+      line-height: 1;
+    }
+    .row.done .check {
+      background: var(--ok);
+      border-color: var(--ok);
+    }
+    .row.done .label {
+      text-decoration: line-through;
+      color: var(--muted);
+    }
+    .actions {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      padding: 12px 14px 14px;
+    }
+    .prayer-row {
+      grid-template-columns: 1fr auto;
+    }
+    .prayer-row .time {
+      color: var(--muted);
+      font-size: 14px;
+      white-space: nowrap;
+    }
+    .prayer-actions {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 6px;
+      grid-column: 1 / -1;
+    }
+    .qazo-row {
+      display: grid;
+      grid-template-columns: 1fr 42px 82px 42px;
+      gap: 8px;
+      align-items: center;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--line);
+    }
+    .qazo-row:last-child {
+      border-bottom: 0;
+    }
+    .qazo-row input {
+      width: 100%;
+      min-height: 42px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--bg);
+      color: var(--text);
+      padding: 8px;
+      text-align: center;
+      font: inherit;
+      font-weight: 650;
+    }
+    .status {
+      min-height: 22px;
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .error {
+      color: var(--danger);
+    }
+    .hidden {
+      display: none;
+    }
+    @media (max-width: 420px) {
+      .shell {
+        padding-left: 10px;
+        padding-right: 10px;
+      }
+      .qazo-row {
+        grid-template-columns: 1fr 38px 72px 38px;
+        gap: 6px;
+      }
+      button {
+        padding-left: 8px;
+        padding-right: 8px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <div>
+        <h1>8 haftalik marafon</h1>
+        <div class="meta" id="meta">Yuklanmoqda...</div>
+      </div>
+      <button class="subtle" data-action="refresh">Yangilash</button>
+    </header>
+
+    <nav class="tabs" aria-label="Bo'limlar">
+      <button class="active" data-tab="fitness">Fitness</button>
+      <button data-tab="prayer">Namoz</button>
+      <button data-tab="qazo">Qazo</button>
+    </nav>
+
+    <main id="app"></main>
+    <div id="status" class="status"></div>
+  </div>
+
+  <script>
+    (function () {
+      var tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
+      if (tg) {
+        tg.ready();
+        tg.expand();
+      }
+
+      var state = null;
+      var activeTab = "fitness";
+      var busy = false;
+      var app = document.getElementById("app");
+      var statusEl = document.getElementById("status");
+      var metaEl = document.getElementById("meta");
+
+      function escapeText(value) {
+        return String(value == null ? "" : value)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;");
+      }
+
+      function setStatus(text, isError) {
+        statusEl.textContent = text || "";
+        statusEl.className = isError ? "status error" : "status";
+      }
+
+      async function api(path, body) {
+        var options = {
+          method: body === undefined ? "GET" : "POST",
+          headers: {
+            "content-type": "application/json",
+            "x-telegram-init-data": tg ? tg.initData : ""
+          }
+        };
+        if (body !== undefined) {
+          options.body = JSON.stringify(body);
+        }
+        var response = await fetch(path, options);
+        var data = await response.json().catch(function () {
+          return { ok: false, error: "Server javobi o'qilmadi." };
+        });
+        if (!response.ok || !data.ok) {
+          throw new Error(data.error || "So'rov bajarilmadi.");
+        }
+        return data;
+      }
+
+      async function refresh() {
+        if (busy) return;
+        busy = true;
+        setStatus("Yangilanmoqda...");
+        try {
+          var data = await api("/api/app-state");
+          state = data.state;
+          render();
+          setStatus("Yangilandi: " + state.now.time);
+        } catch (error) {
+          setStatus(error.message, true);
+        } finally {
+          busy = false;
+        }
+      }
+
+      async function mutate(path, body, message) {
+        if (busy) return;
+        busy = true;
+        setStatus("Saqlanmoqda...");
+        try {
+          var data = await api(path, body);
+          state = data.state;
+          render();
+          setStatus(message || "Saqlandi.");
+          if (tg && tg.HapticFeedback) {
+            tg.HapticFeedback.impactOccurred("light");
+          }
+        } catch (error) {
+          setStatus(error.message, true);
+          if (tg && tg.HapticFeedback) {
+            tg.HapticFeedback.notificationOccurred("error");
+          }
+        } finally {
+          busy = false;
+        }
+      }
+
+      function setActiveTab(tab) {
+        activeTab = tab;
+        Array.prototype.forEach.call(document.querySelectorAll("[data-tab]"), function (button) {
+          button.classList.toggle("active", button.getAttribute("data-tab") === tab);
+        });
+        render();
+      }
+
+      function render() {
+        if (!state) {
+          app.innerHTML = '<section class="panel"><div class="panel-head"><h2>Yuklanmoqda</h2></div></section>';
+          return;
+        }
+        metaEl.textContent = state.now.date + " • " + state.now.time;
+        if (activeTab === "fitness") renderFitness();
+        if (activeTab === "prayer") renderPrayer();
+        if (activeTab === "qazo") renderQazo();
+      }
+
+      function renderFitness() {
+        var fitness = state.fitness;
+        var percent = fitness.total ? Math.round((fitness.completed / fitness.total) * 100) : 0;
+        var rows = fitness.tasks.map(function (task) {
+          return '<button class="row ' + (task.done ? "done" : "") + '" data-action="checklist-toggle" data-index="' + task.index + '">' +
+            '<span class="check">' + (task.done ? "✓" : "") + '</span>' +
+            '<span class="label">' + escapeText(task.text) + '</span>' +
+            '<span class="time">' + (task.done ? "done" : "") + '</span>' +
+          '</button>';
+        }).join("");
+        app.innerHTML =
+          '<section class="panel">' +
+            '<div class="panel-head">' +
+              '<h2>' + escapeText(fitness.title) + '</h2>' +
+              '<div class="summary">' +
+                '<span>' + escapeText(fitness.workout) + '</span>' +
+                '<span>Treadmill: ' + escapeText(fitness.treadmill) + '</span>' +
+                '<span>Zina: ' + escapeText(fitness.stair) + '</span>' +
+                '<strong>' + fitness.completed + " / " + fitness.total + ' bajarildi</strong>' +
+              '</div>' +
+              '<div class="progress"><span style="width:' + percent + '%"></span></div>' +
+            '</div>' +
+            '<div class="list">' + rows + '</div>' +
+            '<div class="actions">' +
+              '<button data-action="checklist-all" class="primary">Hammasi</button>' +
+              '<button data-action="checklist-reset">Reset</button>' +
+            '</div>' +
+          '</section>';
+      }
+
+      function prayerStatusText(row) {
+        if (row.doneStatus === "done") return "O'qildi";
+        if (row.doneStatus === "qazo" || row.doneStatus === "auto_qazo") return "Qazo";
+        if (row.isOpen) return "Vaqti kirgan";
+        if (row.isDue) return "Tekshirilmoqda";
+        return "Kutilmoqda";
+      }
+
+      function renderPrayer() {
+        var prayer = state.prayer;
+        var sunrise = prayer.sunrise && prayer.sunrise.time ? '<span>Quyosh: ' + escapeText(prayer.sunrise.time) + '</span>' : '';
+        var rows = prayer.rows.map(function (row) {
+          var disabled = row.doneStatus ? " disabled" : "";
+          return '<div class="row prayer-row">' +
+            '<span><strong>' + escapeText(row.label) + '</strong><br><small>' + escapeText(prayerStatusText(row)) + '</small></span>' +
+            '<span class="time">' + escapeText(row.time) + '</span>' +
+            '<div class="prayer-actions">' +
+              '<button data-action="prayer-done" data-key="' + escapeText(row.key) + '"' + disabled + '>O&apos;qidim</button>' +
+              '<button data-action="prayer-qazo" data-key="' + escapeText(row.key) + '" class="danger"' + disabled + '>Qazo</button>' +
+            '</div>' +
+          '</div>';
+        }).join("");
+        app.innerHTML =
+          '<section class="panel">' +
+            '<div class="panel-head">' +
+              '<h2>Namoz vaqtlari</h2>' +
+              '<div class="summary">' +
+                '<span>' + escapeText(prayer.date) + ' • ' + escapeText(prayer.city || "") + '</span>' +
+                '<span>Manba: ' + escapeText(prayer.source || "") + '</span>' +
+                sunrise +
+              '</div>' +
+            '</div>' +
+            '<div class="list">' + rows + '</div>' +
+          '</section>';
+      }
+
+      function renderQazo() {
+        var rows = state.qazo.counts.map(function (item) {
+          return '<div class="qazo-row">' +
+            '<strong>' + escapeText(item.label) + '</strong>' +
+            '<button data-action="qazo-minus" data-key="' + escapeText(item.key) + '">−</button>' +
+            '<input inputmode="numeric" pattern="[0-9]*" min="0" type="number" data-qazo-input="' + escapeText(item.key) + '" value="' + Number(item.count || 0) + '">' +
+            '<button data-action="qazo-plus" data-key="' + escapeText(item.key) + '">+</button>' +
+          '</div>';
+        }).join("");
+        app.innerHTML =
+          '<section class="panel">' +
+            '<div class="panel-head">' +
+              '<h2>Qazo panel</h2>' +
+              '<div class="summary"><strong>Jami qazo: ' + state.qazo.total + '</strong><span>Raqamlarni o\\'zgartirib saqlash mumkin.</span></div>' +
+            '</div>' +
+            '<div class="list">' + rows + '</div>' +
+            '<div class="actions">' +
+              '<button data-action="qazo-save" class="primary">Saqlash</button>' +
+              '<button data-action="refresh">Yangilash</button>' +
+            '</div>' +
+          '</section>';
+      }
+
+      document.addEventListener("click", function (event) {
+        var tab = event.target.closest("[data-tab]");
+        if (tab) {
+          setActiveTab(tab.getAttribute("data-tab"));
+          return;
+        }
+
+        var target = event.target.closest("[data-action]");
+        if (!target || !state) return;
+        var action = target.getAttribute("data-action");
+
+        if (action === "refresh") {
+          refresh();
+        } else if (action === "checklist-toggle") {
+          mutate("/api/checklist-toggle", {
+            date: state.fitness.date,
+            index: Number(target.getAttribute("data-index"))
+          }, "Checklist yangilandi.");
+        } else if (action === "checklist-all") {
+          mutate("/api/checklist-toggle", { date: state.fitness.date, action: "all" }, "Hammasi belgilandi.");
+        } else if (action === "checklist-reset") {
+          mutate("/api/checklist-toggle", { date: state.fitness.date, action: "reset" }, "Checklist tozalandi.");
+        } else if (action === "qazo-plus" || action === "qazo-minus") {
+          mutate("/api/qazo-adjust", {
+            key: target.getAttribute("data-key"),
+            delta: action === "qazo-plus" ? 1 : -1
+          }, "Qazo hisobi yangilandi.");
+        } else if (action === "qazo-save") {
+          var counts = {};
+          Array.prototype.forEach.call(document.querySelectorAll("[data-qazo-input]"), function (input) {
+            counts[input.getAttribute("data-qazo-input")] = Math.max(0, Number(input.value || 0));
+          });
+          mutate("/api/qazo-bulk", { counts: counts }, "Qazo sonlari saqlandi.");
+        } else if (action === "prayer-done" || action === "prayer-qazo") {
+          mutate("/api/prayer-done", {
+            date: state.prayer.date,
+            key: target.getAttribute("data-key"),
+            status: action === "prayer-qazo" ? "qazo" : "done"
+          }, "Namoz holati yangilandi.");
+        }
+      });
+
+      refresh();
+    }());
+  </script>
+</body>
+</html>`, {
+    headers: {
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "no-store",
+    },
+  });
+}
+
 async function sendInlineChecklist(env, chatId, targetDate, notice = null, options = {}) {
   if (notice) {
     await sendTelegram(env, chatId, notice, null, options);
@@ -1423,6 +2247,9 @@ function responseFor(text, env) {
   if (normalized === "/start" || normalized === "/help" || normalized.includes("yordam")) {
     return helpMessage();
   }
+  if (normalized === "/app") {
+    return "Mini Appni ochish uchun pastdagi tugmadan foydalaning.";
+  }
   if (normalized === "/tomorrow" || normalized.includes("ertaga")) {
     return buildWorkoutMessage(tashkentDate(1), env);
   }
@@ -1434,7 +2261,7 @@ function responseFor(text, env) {
   ) {
     return buildWorkoutMessage(tashkentDate(0), env);
   }
-  return "Tushundim. Fitness uchun <b>/today</b>, namoz uchun <b>/namoz</b>, qazo panel uchun <b>/qazo</b> deb yozing.";
+  return "Tushundim. Fitness uchun <b>/today</b>, namoz uchun <b>/namoz</b>, qazo panel uchun <b>/qazo</b>, Mini App uchun <b>/app</b> deb yozing.";
 }
 
 export default {
@@ -1443,8 +2270,15 @@ export default {
   },
 
   async fetch(request, env) {
+    const url = new URL(request.url);
+    if (request.method === "GET" && url.pathname === "/app") {
+      return miniAppHtml();
+    }
+    if (url.pathname.startsWith("/api/")) {
+      return handleMiniAppApi(request, env);
+    }
     if (request.method !== "POST") {
-      return new Response("Fitness bot is running.");
+      return new Response("Fitness bot is running. Mini App: /app");
     }
 
     const update = await request.json();
@@ -1629,7 +2463,13 @@ export default {
         await sendInlineChecklist(env, chatId, tashkentDate(1), null, threadOptions(threadId));
       } else if (callback.data === "help") {
         await answerCallback(env, callback.id, "Yordam yuborildi.");
-        await sendTelegram(env, chatId, helpMessage(), workoutKeyboard(), threadOptions(threadId));
+        await sendTelegram(
+          env,
+          chatId,
+          helpMessage(),
+          workoutKeyboard(env, request.url, callback.message.chat.type === "private"),
+          threadOptions(threadId)
+        );
       } else {
         await answerCallback(env, callback.id, "Bugungi reja yuborildi.");
         await sendInlineChecklist(env, chatId, tashkentDate(0), null, threadOptions(threadId));
@@ -1734,12 +2574,38 @@ export default {
     }
 
     if (wantsStatus(message.text)) {
-      await sendTelegram(env, message.chat.id, statusMessage(env, message.chat.id), workoutKeyboard(), threadOptions(threadId));
+      await sendTelegram(
+        env,
+        message.chat.id,
+        statusMessage(env, message.chat.id),
+        workoutKeyboard(env, request.url, message.chat.type === "private"),
+        threadOptions(threadId)
+      );
+      return new Response("OK");
+    }
+
+    if (normalizedText === "/app") {
+      const canOpenMiniApp = message.chat.type === "private";
+      await sendTelegram(
+        env,
+        message.chat.id,
+        canOpenMiniApp
+          ? "Mini Appni ochish uchun tugmani bosing."
+          : "Telegram Mini App tugmasi private chatda ochiladi. Botga private chatda /app yuboring.",
+        workoutKeyboard(env, request.url, canOpenMiniApp),
+        threadOptions(threadId)
+      );
       return new Response("OK");
     }
 
     if (normalizedText === "/start" || normalizedText === "/help" || normalizedText.includes("yordam")) {
-      await sendTelegram(env, message.chat.id, helpMessage(), workoutKeyboard(), threadOptions(threadId));
+      await sendTelegram(
+        env,
+        message.chat.id,
+        helpMessage(),
+        workoutKeyboard(env, request.url, message.chat.type === "private"),
+        threadOptions(threadId)
+      );
       return new Response("OK");
     }
 
@@ -1774,7 +2640,13 @@ export default {
       return new Response("OK");
     }
 
-    await sendTelegram(env, message.chat.id, responseFor(message.text, env), workoutKeyboard(), threadOptions(threadId));
+    await sendTelegram(
+      env,
+      message.chat.id,
+      responseFor(message.text, env),
+      workoutKeyboard(env, request.url, message.chat.type === "private"),
+      threadOptions(threadId)
+    );
     return new Response("OK");
   },
 };

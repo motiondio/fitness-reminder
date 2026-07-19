@@ -11,7 +11,8 @@
     "FITNESS_START_DATE": "2026-07-19",
     "PRAYER_SOURCE": "namozvaqti",
     "PRAYER_REGION": "toshkent-shahri",
-    "PRAYER_REMINDER_INTERVAL_MINUTES": "10"
+    "PRAYER_REMINDER_INTERVAL_MINUTES": "10",
+    "MINI_APP_AUTH_MAX_AGE_SECONDS": "604800"
   },
   "secrets": {
     "required": [

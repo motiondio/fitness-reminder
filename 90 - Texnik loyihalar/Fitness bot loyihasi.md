@@ -37,10 +37,14 @@ Bog'liq notelar:
 - Auto-qazo: keyingi namoz kirsa oldingi belgilanmagan namoz qazo bo'ladi
 - Bomdod muddati: quyosh chiqishigacha
 - Xufton muddati: keyingi Bomdodgacha; o'tib ketsa Xufton + Vitr qazo bo'ladi
+- Telegram Mini App: `/app`, `GET /api/app-state`, `POST /api/checklist-toggle`, `POST /api/prayer-done`, `POST /api/qazo-adjust`, `POST /api/qazo-bulk`
+- Mini App bo'limlari: Fitness, Namoz, Qazo
+- Mini App xavfsizligi: Telegram `initData` tekshiruvi, `MINI_APP_ALLOWED_USER_IDS`
 
 ## Keyingi bosqichlar
 
-- Namoz topic ichida `/threadid` orqali `PRAYER_TOPIC_ID` ni olish
+- Cloudflare deploydan keyin private chatda `/app` ni test qilish
+- Telegram `setChatMenuButton` orqali Mini App menu button qo'yish
 - Cloudflare Worker uchun `*/5 * * * *` Cron Trigger qo'shish
 - Botni group admin qilib, `Pin messages` ruxsatini berish
 - AI'siz aqlli komandalarni kengaytirish
