@@ -46,7 +46,7 @@ Oxirgi takomillashtirishlar:
 - `GOOGLE_SERVICE_ACCOUNT_JSON` Cloudflare tarafida JSON object bo'lib kelsa ham qabul qilinadi.
 - Cardni uzoq bosib turib boshqa ustunga drag qilish qo'shildi.
 - Yangi zakaz qo'shilganda riser synth sound va haptic feedback qo'shildi.
-- Interface scale sozlamasi qo'shildi.
+- Fixed compact UI qo'shildi: scale sozlamasisiz, odatdagidan taxminan 7% kichikroq.
 - `Auto`, `Dark`, `White` theme sozlamalari qo'shildi.
 
 ## Platforma

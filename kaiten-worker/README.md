@@ -118,7 +118,7 @@ curl -X POST "https://api.telegram.org/bot$BOT_TOKEN/setChatMenuButton" \
 - Cardni ustundan ustunga o'tkazish
 - Cardni uzoq bosib turib boshqa ustunga drag qilish
 - Yangi zakaz qo'shilganda qisqa riser sound va haptic feedback
-- Interface scale sozlamasi
+- Fixed compact UI: scale sozlamasisiz, odatdagidan taxminan 7% kichikroq
 - Auto, Dark, White theme sozlamalari
 - Kaiten comment qo'shish
 - Owner/admin uchun whitelist panel

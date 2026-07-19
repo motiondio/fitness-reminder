@@ -10,7 +10,7 @@ const CONFIG = {
   clientEndRow: 1000,
 };
 
-const APP_VERSION = "kaiten-miniapp-2026-07-19-05";
+const APP_VERSION = "kaiten-miniapp-2026-07-19-06";
 
 const ICON_PRESETS = [
   { value: "⭐️", label: "Syomka" },
@@ -844,10 +844,10 @@ function appHtml() {
   <style>
     :root {
       color-scheme: dark;
-      --ui-scale: 1;
-      --font-base: 15px;
+      --font-base: 14px;
       --bg: #171717;
       --surface: #242424;
+      --column: rgba(28,28,28,.9);
       --card: #3f3f3f;
       --line: rgba(255,255,255,.13);
       --muted: rgba(255,255,255,.62);
@@ -865,6 +865,7 @@ function appHtml() {
       color-scheme: light;
       --bg: #f3f5f7;
       --surface: #ffffff;
+      --column: rgba(255,255,255,.88);
       --card: #ffffff;
       --line: rgba(15,23,42,.14);
       --muted: rgba(15,23,42,.62);
@@ -953,7 +954,7 @@ function appHtml() {
       min-width: 18.667em;
       height: 100%;
       min-height: 0;
-      background: rgba(28,28,28,.9);
+      background: var(--column);
       border: 1px solid var(--line);
       border-radius: var(--radius);
       overflow: hidden;
@@ -995,13 +996,16 @@ function appHtml() {
       -webkit-overflow-scrolling: touch;
     }
     .card {
+      width: 100%;
+      max-width: 100%;
       background: var(--card);
       border: 1px solid var(--line);
       border-radius: var(--radius);
       padding: .8em;
       text-align: left;
-      min-height: 6.133em;
+      min-height: 5.733em;
       line-height: 1.35;
+      overflow: hidden;
       box-shadow: 0 10px 24px rgba(0,0,0,.18);
       touch-action: manipulation;
       transition: border-color .16s ease, box-shadow .16s ease, transform .16s ease, opacity .16s ease;
@@ -1022,8 +1026,20 @@ function appHtml() {
       transform: translate(-50%, -50%) scale(1.02);
       opacity: .94;
     }
-    .card-title { white-space: pre-wrap; font-size: 1.133em; }
-    .card-footer { display: flex; gap: .533em; margin-top: .8em; color: var(--muted); font-size: .867em; }
+    .card-title {
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+      font-size: 1.133em;
+    }
+    .card-footer {
+      display: flex;
+      flex-wrap: wrap;
+      gap: .533em;
+      margin-top: .8em;
+      color: var(--muted);
+      font-size: .867em;
+    }
     .client-pill {
       display: inline-block;
       max-width: 100%;
@@ -1032,9 +1048,9 @@ function appHtml() {
       border-radius: 999px;
       background: #bff5fb;
       color: #263238;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+      line-height: 1.2;
+      overflow-wrap: anywhere;
+      white-space: normal;
     }
     .modal {
       position: fixed;
@@ -1192,19 +1208,13 @@ function appHtml() {
       border-color: var(--accent);
       background: var(--active);
     }
-    .range-row {
-      display: grid;
-      grid-template-columns: 1fr auto;
-      gap: .8em;
-      align-items: center;
-    }
     .error { color: var(--danger); }
     .hidden { display: none; }
     @media (max-width: 760px) {
       .topbar { grid-template-columns: 1fr; }
       .toolbar { justify-content: stretch; }
       .toolbar button { flex: 1 1 auto; }
-      .board { grid-template-columns: repeat(3, 86vw); scroll-snap-type: x mandatory; }
+      .board { grid-template-columns: repeat(3, 84vw); scroll-snap-type: x mandatory; }
       .column { scroll-snap-align: start; }
       .form-grid { grid-template-columns: 1fr; }
       .user-row { grid-template-columns: 1fr; }
@@ -1318,8 +1328,7 @@ function appHtml() {
       var suppressClickUntil = 0;
       var dragState = null;
       var preferences = {
-        theme: "auto",
-        scale: 100
+        theme: "auto"
       };
       var months = ["Yanvar","Fevral","Mart","Aprel","May","Iyun","Iyul","Avgust","Sentabr","Oktabr","Noyabr","Dekabr"];
       var monthMap = months.reduce(function (acc, month, index) {
@@ -1376,23 +1385,15 @@ function appHtml() {
 
       function loadPreferences() {
         preferences.theme = storageGet("kaiten:theme", "auto");
-        preferences.scale = Number(storageGet("kaiten:scale", "100"));
-        if (!Number.isFinite(preferences.scale)) {
-          preferences.scale = 100;
-        }
-        preferences.scale = Math.min(120, Math.max(85, preferences.scale));
       }
 
       function applyPreferences() {
         var theme = effectiveTheme(preferences.theme);
         document.documentElement.dataset.theme = theme;
-        document.documentElement.style.setProperty("--ui-scale", String(preferences.scale / 100));
-        document.documentElement.style.setProperty("--font-base", String(15 * preferences.scale / 100) + "px");
       }
 
       function savePreferences() {
         storageSet("kaiten:theme", preferences.theme);
-        storageSet("kaiten:scale", String(preferences.scale));
         applyPreferences();
         renderSettings();
       }
@@ -1753,13 +1754,6 @@ function appHtml() {
                 '<button type="button" data-theme-choice="light" class="' + (preferences.theme === "light" ? "active" : "") + '">White</button>' +
               '</div>' +
             '</div>' +
-            '<div class="field full">' +
-              '<label>Interface scale</label>' +
-              '<div class="range-row">' +
-                '<input id="scaleInput" type="range" min="85" max="120" step="5" value="' + preferences.scale + '">' +
-                '<strong id="scaleValue">' + preferences.scale + '%</strong>' +
-              '</div>' +
-            '</div>' +
           '</div>';
       }
 
@@ -1951,13 +1945,6 @@ function appHtml() {
           savePreferences();
           haptic("light");
         }
-      });
-      settingsPanel.addEventListener("input", function (event) {
-        if (event.target.id !== "scaleInput") return;
-        preferences.scale = Number(event.target.value);
-        document.getElementById("scaleValue").textContent = preferences.scale + "%";
-        storageSet("kaiten:scale", String(preferences.scale));
-        applyPreferences();
       });
       adminPanel.addEventListener("click", async function (event) {
         if (event.target === adminPanel || event.target.id === "closeAdminBtn") {
