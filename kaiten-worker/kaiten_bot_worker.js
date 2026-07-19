@@ -10,7 +10,7 @@ const CONFIG = {
   clientEndRow: 1000,
 };
 
-const APP_VERSION = "kaiten-miniapp-2026-07-19-10";
+const APP_VERSION = "kaiten-miniapp-2026-07-19-11";
 
 const ICON_PRESETS = [
   { value: "⭐️", label: "Syomka" },
@@ -657,7 +657,9 @@ function uzDateTitle(dateValue) {
 function buildCardTitle(body) {
   const icon = String(body.icon || "").trim();
   const date = uzDateTitle(body.date);
-  const time = String(body.time || "").trim();
+  const startTime = String(body.startTime || "").trim();
+  const endTime = String(body.endTime || "").trim();
+  const time = String(body.time || (startTime && endTime ? `${startTime}-${endTime}` : startTime)).trim();
   const client = String(body.clientName || "").trim();
   return [icon ? `${icon}${date}` : date, time, client].filter(Boolean).join(" ").trim();
 }
@@ -1305,6 +1307,7 @@ function appHtml() {
       </div>
       <div class="toolbar">
         <button class="primary" id="newBtn">+ Yangi syomka</button>
+        <button id="newClientBtn">+ Yangi mijoz</button>
         <button id="refreshBtn">Yangilash</button>
         <button id="settingsBtn">Ko'rinish</button>
         <button id="adminBtn" class="hidden">Admin</button>
@@ -1328,8 +1331,12 @@ function appHtml() {
           <input id="dateInput" type="date" required>
         </div>
         <div class="field">
-          <label>Vaqt</label>
-          <input id="timeInput" placeholder="16:00 yoki 14:00-17:00" required>
+          <label>Boshlanish</label>
+          <input id="startTimeInput" type="time" required>
+        </div>
+        <div class="field">
+          <label>Tugash</label>
+          <input id="endTimeInput" type="time">
         </div>
         <div class="field full">
           <label>Mijoz</label>
@@ -1340,18 +1347,6 @@ function appHtml() {
         </div>
         <div class="field full">
           <button type="button" id="refreshClientsBtn">Mijozlar bazasini yangilash</button>
-        </div>
-        <div class="field full">
-          <button type="button" id="toggleNewClient">Yangi mijoz ma'lumotlari</button>
-        </div>
-        <div id="newClientFields" class="field full hidden">
-          <div class="form-grid">
-            <div class="field"><label>Ism</label><input id="firstNameInput"></div>
-            <div class="field"><label>Familiya</label><input id="lastNameInput"></div>
-            <div class="field"><label>Sohasi yoki kompaniyasi</label><input id="companyInput"></div>
-            <div class="field"><label>Telefon</label><input id="phoneInput"></div>
-            <div class="field full"><label>Izoh</label><textarea id="noteInput"></textarea></div>
-          </div>
         </div>
         <div class="field full">
           <label>Preview</label>
@@ -1377,6 +1372,22 @@ function appHtml() {
     </div>
   </div>
 
+  <div id="clientModal" class="modal" aria-hidden="true">
+    <div class="sheet">
+      <form id="clientForm" class="form-grid">
+        <div class="field"><label>Ism</label><input id="firstNameInput" required></div>
+        <div class="field"><label>Familiya</label><input id="lastNameInput" required></div>
+        <div class="field"><label>Sohasi yoki kompaniyasi</label><input id="companyInput"></div>
+        <div class="field"><label>Telefon</label><input id="phoneInput"></div>
+        <div class="field full"><label>Izoh</label><textarea id="noteInput"></textarea></div>
+        <div class="field full">
+          <button class="primary" type="submit">Mijozni saqlash</button>
+          <button type="button" id="closeClientModal">Yopish</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <script>
     (function () {
       var tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
@@ -1391,11 +1402,11 @@ function appHtml() {
       var state = null;
       var selectedIcon = "⭐️";
       var editingCard = null;
-      var newClientOpen = false;
       var boardEl = document.getElementById("board");
       var statusEl = document.getElementById("status");
       var metaEl = document.getElementById("meta");
       var modalEl = document.getElementById("modal");
+      var clientModalEl = document.getElementById("clientModal");
       var adminPanel = document.getElementById("adminPanel");
       var settingsPanel = document.getElementById("settingsPanel");
       var clientSuggestions = document.getElementById("clientSuggestions");
@@ -1565,26 +1576,33 @@ function appHtml() {
         };
       }
 
-      function newClientName() {
-        return [
-          document.getElementById("firstNameInput").value,
-          document.getElementById("lastNameInput").value
-        ].map(function (part) {
-          return String(part || "").trim();
-        }).filter(Boolean).join(" ");
+      function normalizeTimeInput(value) {
+        var match = String(value || "").trim().match(/^(\\d{1,2}):(\\d{2})$/);
+        if (!match) return "";
+        return pad2(Number(match[1])) + ":" + match[2];
       }
 
-      function selectedClientName() {
-        if (newClientOpen) {
-          return newClientName();
+      function splitTimeRange(value) {
+        var parts = String(value || "").replace(/\\s+/g, "").replace(/[–—]/g, "-").split("-");
+        return {
+          start: normalizeTimeInput(parts[0]),
+          end: normalizeTimeInput(parts[1])
+        };
+      }
+
+      function selectedTimeRange() {
+        var start = document.getElementById("startTimeInput").value;
+        var end = document.getElementById("endTimeInput").value;
+        if (start && end) {
+          return start + "-" + end;
         }
-        return document.getElementById("clientInput").value.trim();
+        return start;
       }
 
       function buildTitle() {
         var dateText = monthTitle(document.getElementById("dateInput").value);
-        var time = document.getElementById("timeInput").value.trim();
-        var client = selectedClientName();
+        var time = selectedTimeRange();
+        var client = document.getElementById("clientInput").value.trim();
         return [selectedIcon ? selectedIcon + dateText : dateText, time, client].filter(Boolean).join(" ").trim();
       }
 
@@ -1908,21 +1926,18 @@ function appHtml() {
 
       function openModal(card) {
         editingCard = card || null;
-        newClientOpen = false;
-        document.getElementById("newClientFields").classList.add("hidden");
-        document.getElementById("toggleNewClient").textContent = "Yangi mijoz ma'lumotlari";
-        document.getElementById("firstNameInput").required = false;
-        document.getElementById("lastNameInput").required = false;
         if (editingCard) {
           var parsed = parseCardTitle(editingCard.title);
+          var parsedTime = splitTimeRange(parsed.time);
           selectedIcon = parsed.icon || selectedIcon;
           document.getElementById("titleInput").value = editingCard.title;
           document.getElementById("clientInput").value = parsed.clientName || guessClient(editingCard.title);
           document.getElementById("columnInput").value = editingCard.columnId;
           document.getElementById("dateInput").value = parsed.date;
-          document.getElementById("timeInput").value = parsed.time;
+          document.getElementById("startTimeInput").value = parsedTime.start;
+          document.getElementById("endTimeInput").value = parsedTime.end;
           document.getElementById("dateInput").required = false;
-          document.getElementById("timeInput").required = false;
+          document.getElementById("startTimeInput").required = false;
           document.getElementById("clientInput").required = false;
         } else {
           document.getElementById("cardForm").reset();
@@ -1931,7 +1946,7 @@ function appHtml() {
           document.getElementById("columnInput").value = state.config.columns[0].id;
           document.getElementById("titleInput").value = "";
           document.getElementById("dateInput").required = true;
-          document.getElementById("timeInput").required = true;
+          document.getElementById("startTimeInput").required = true;
           document.getElementById("clientInput").required = true;
         }
         document.getElementById("commentInput").value = "";
@@ -1942,6 +1957,15 @@ function appHtml() {
       function closeModal() {
         modalEl.classList.remove("open");
         clientSuggestions.classList.remove("open");
+      }
+
+      function openClientModal() {
+        document.getElementById("clientForm").reset();
+        clientModalEl.classList.add("open");
+      }
+
+      function closeClientModal() {
+        clientModalEl.classList.remove("open");
       }
 
       function updatePreview() {
@@ -1960,26 +1984,19 @@ function appHtml() {
         var title = document.getElementById("titleInput").value.trim() || buildTitle();
         var columnId = Number(document.getElementById("columnInput").value);
         var comment = document.getElementById("commentInput").value.trim();
-        var clientName = selectedClientName();
+        var clientName = document.getElementById("clientInput").value.trim();
         try {
           var payload = {
             title: title,
             columnId: columnId,
             icon: selectedIcon,
             date: document.getElementById("dateInput").value,
-            time: document.getElementById("timeInput").value,
+            startTime: document.getElementById("startTimeInput").value,
+            endTime: document.getElementById("endTimeInput").value,
+            time: selectedTimeRange(),
             clientName: clientName,
             comment: comment
           };
-          if (newClientOpen) {
-            payload.newClient = true;
-            payload.client = {
-              name: clientName,
-              company: document.getElementById("companyInput").value,
-              phone: document.getElementById("phoneInput").value,
-              note: document.getElementById("noteInput").value
-            };
-          }
           var data = editingCard
             ? await api("/api/cards/" + editingCard.id, { method: "PATCH", body: payload })
             : await api("/api/cards", { method: "POST", body: payload });
@@ -1995,7 +2012,36 @@ function appHtml() {
         }
       }
 
+      async function saveClient(event) {
+        event.preventDefault();
+        var fullName = [
+          document.getElementById("firstNameInput").value,
+          document.getElementById("lastNameInput").value
+        ].map(function (part) {
+          return String(part || "").trim();
+        }).filter(Boolean).join(" ");
+        try {
+          var data = await api("/api/clients", {
+            method: "POST",
+            body: {
+              name: fullName,
+              company: document.getElementById("companyInput").value,
+              phone: document.getElementById("phoneInput").value,
+              note: document.getElementById("noteInput").value
+            }
+          });
+          state = data.state;
+          render();
+          closeClientModal();
+          haptic("success");
+          setStatus("Mijoz bazaga qo'shildi. Yangi syomkada tanlash mumkin.");
+        } catch (error) {
+          setStatus(error.message, true);
+        }
+      }
+
       document.getElementById("newBtn").addEventListener("click", function () { openModal(null); });
+      document.getElementById("newClientBtn").addEventListener("click", openClientModal);
       document.getElementById("refreshBtn").addEventListener("click", refresh);
       document.getElementById("settingsBtn").addEventListener("click", function () {
         renderSettings();
@@ -2006,19 +2052,9 @@ function appHtml() {
         adminPanel.classList.add("open");
       });
       document.getElementById("closeModal").addEventListener("click", closeModal);
+      document.getElementById("closeClientModal").addEventListener("click", closeClientModal);
       document.getElementById("cardForm").addEventListener("submit", saveCard);
-      document.getElementById("toggleNewClient").addEventListener("click", function () {
-        newClientOpen = !newClientOpen;
-        document.getElementById("newClientFields").classList.toggle("hidden", !newClientOpen);
-        document.getElementById("clientInput").required = !newClientOpen && !editingCard;
-        document.getElementById("firstNameInput").required = newClientOpen;
-        document.getElementById("lastNameInput").required = newClientOpen;
-        document.getElementById("toggleNewClient").textContent = newClientOpen ? "Mavjud mijozdan tanlash" : "Yangi mijoz ma'lumotlari";
-        if (newClientOpen) {
-          clientSuggestions.classList.remove("open");
-        }
-        updatePreview();
-      });
+      document.getElementById("clientForm").addEventListener("submit", saveClient);
       document.getElementById("refreshClientsBtn").addEventListener("click", async function () {
         setStatus("Mijozlar bazasi yangilanmoqda...");
         try {
@@ -2032,7 +2068,7 @@ function appHtml() {
           setStatus(error.message, true);
         }
       });
-      ["dateInput", "timeInput"].forEach(function (id) {
+      ["dateInput", "startTimeInput", "endTimeInput"].forEach(function (id) {
         document.getElementById(id).addEventListener("input", updatePreview);
       });
       document.getElementById("clientInput").addEventListener("input", function () {
@@ -2042,9 +2078,6 @@ function appHtml() {
       document.getElementById("clientInput").addEventListener("focus", renderClientSuggestions);
       document.getElementById("clientInput").addEventListener("blur", function () {
         setTimeout(function () { clientSuggestions.classList.remove("open"); }, 180);
-      });
-      ["firstNameInput", "lastNameInput"].forEach(function (id) {
-        document.getElementById(id).addEventListener("input", updatePreview);
       });
       clientSuggestions.addEventListener("click", function (event) {
         var button = event.target.closest("[data-client-name]");

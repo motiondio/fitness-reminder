@@ -50,7 +50,8 @@ Oxirgi takomillashtirishlar:
 - `Auto`, `Dark`, `White` theme sozlamalari qo'shildi.
 - Card boxlar title va mijoz pilllariga mos balandlashadigan qilindi.
 - Card drag paytida board horizontal scroll vaqtincha bloklanadigan qilindi.
-- Yangi mijoz qo'shishda mavjud mijoz inputi majburiy bo'lmaydigan va card title ism/familiyadan yig'iladigan qilindi.
+- Yangi syomka formidan yangi mijoz maydonlari olib tashlandi; yangi mijoz alohida menu orqali qo'shiladigan qilindi.
+- Syomka yaratishda boshlanish va tugash vaqtini alohida `time` inputlardan tanlash qo'shildi.
 - Yangi mijoz card yaratilishidan oldin Google Sheetsga yoziladigan va KV cache darhol yangilanadigan qilindi.
 - Cardlar Telegram iOS WebView'da balandlik buzilmasligi uchun button emas, clickable article sifatida render qilinadigan qilindi.
 
