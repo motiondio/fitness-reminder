@@ -58,6 +58,8 @@ Oxirgi takomillashtirishlar:
 - Carddagi pastki pilllar mijoz nomidan emas, Kaiten card taglaridan olinadigan qilindi.
 - Cardlar har bir column ichida Kaiten `sort_order` bo'yicha ko'rsatiladigan qilindi.
 - Uzun title va tag nomlari kesilib qolmasligi uchun card balandligi kontentga moslashadigan qilindi.
+- Cardni uzoq bosib turib shu ustun ichida tepa-pastga reorder qilish qo'shildi.
+- Boshlanish va tugash vaqtini qo'lda yozmasdan readonly field + tezkor vaqt grididan tanlash qo'shildi.
 
 ## Platforma
 
@@ -250,7 +252,7 @@ Yangi card form:
 
 - Icon picker
 - Sana picker
-- Vaqt picker
+- Boshlanish va tugash vaqti picker
 - Mijoz autocomplete
 - Yangi mijoz modal
 - Preview title

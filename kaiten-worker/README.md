@@ -114,10 +114,11 @@ curl -X POST "https://api.telegram.org/bot$BOT_TOKEN/setChatMenuButton" \
 - Mini App ichidan mijozlar bazasini qo'lda refresh qilish
 - Yangi mijozni alohida menu orqali `MIJOZLAR BAZASI!A6:A1000` ichidagi birinchi bo'sh qatorga yozish
 - Card title edit qilish
-- Syomka yaratishda boshlanish va tugash vaqtini alohida `time` inputlardan tanlash
+- Syomka yaratishda boshlanish va tugash vaqtini readonly field + tezkor vaqt grididan tanlash
 - Mavjud card title ichidan icon, sana, vaqt va mijozni ajratib olish
 - Cardni ustundan ustunga o'tkazish
 - Cardni uzoq bosib turib boshqa ustunga drag qilish
+- Cardni uzoq bosib turib shu ustun ichida tepa-pastga reorder qilish
 - Yangi zakaz qo'shilganda qisqa riser sound va haptic feedback
 - Fixed compact UI: scale sozlamasisiz, odatdagidan taxminan 7% kichikroq
 - Auto, Dark, White theme sozlamalari

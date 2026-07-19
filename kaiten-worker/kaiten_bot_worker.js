@@ -10,7 +10,7 @@ const CONFIG = {
   clientEndRow: 1000,
 };
 
-const APP_VERSION = "kaiten-miniapp-2026-07-19-13";
+const APP_VERSION = "kaiten-miniapp-2026-07-19-14";
 
 const ICON_PRESETS = [
   { value: "⭐️", label: "Syomka" },
@@ -490,6 +490,13 @@ async function updateKaitenCard(env, cardId, patch) {
   if (patch.columnId !== undefined) {
     body.column_id = Number(patch.columnId);
   }
+  if (patch.prevCardId !== undefined) {
+    if (patch.prevCardId) {
+      body.prev_card_id = Number(patch.prevCardId);
+    } else {
+      body.sort_order = 1;
+    }
+  }
   return normalizeKaitenCard(await kaitenRequest(env, `/cards/${Number(cardId)}`, {
     method: "PATCH",
     body: JSON.stringify(body),
@@ -932,8 +939,16 @@ async function handleApi(request, env) {
       if (!columnId) {
         return jsonResponse({ ok: false, error: "Column noto'g'ri." }, 400);
       }
-      const card = await updateKaitenCard(env, cardMoveMatch[1], { columnId });
-      await audit(env, user, "card.move", { cardId: card.id, columnId });
+      const patch = { columnId };
+      if (body.prevCardId !== undefined) {
+        const prevCardId = body.prevCardId === null || body.prevCardId === "" ? null : Number(body.prevCardId);
+        if (prevCardId !== null && !Number.isFinite(prevCardId)) {
+          return jsonResponse({ ok: false, error: "Prev card noto'g'ri." }, 400);
+        }
+        patch.prevCardId = prevCardId;
+      }
+      const card = await updateKaitenCard(env, cardMoveMatch[1], patch);
+      await audit(env, user, "card.move", { cardId: card.id, columnId, prevCardId: patch.prevCardId ?? null });
       return jsonResponse({ ok: true, card, state: await buildState(env, user) });
     }
 
@@ -1141,6 +1156,9 @@ function appHtml() {
       background: var(--drop);
       transform: translateY(-1px);
     }
+    .cards.drop-end {
+      box-shadow: inset 0 -3px 0 var(--accent);
+    }
     .column-head {
       display: grid;
       grid-template-columns: 1fr auto;
@@ -1200,6 +1218,10 @@ function appHtml() {
     .card.dragging {
       opacity: .34;
       touch-action: none;
+    }
+    .card.drop-before {
+      box-shadow: inset 0 3px 0 var(--accent), 0 10px 24px rgba(0,0,0,.18);
+      border-color: rgba(139,211,255,.75);
     }
     .drag-ghost {
       position: fixed;
@@ -1328,6 +1350,36 @@ function appHtml() {
       gap: .467em;
     }
     .icon-choice.active { outline: 2px solid var(--accent); }
+    .time-tabs {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: .467em;
+    }
+    .time-tabs button.active,
+    .time-grid button.active,
+    .duration-grid button.active {
+      border-color: var(--accent);
+      background: var(--active);
+    }
+    .time-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(4.8em, 1fr));
+      gap: .4em;
+      max-height: 13.333em;
+      overflow-y: auto;
+      padding: .533em 0;
+      overscroll-behavior: contain;
+    }
+    .time-grid button,
+    .duration-grid button {
+      min-height: 2.467em;
+      padding: .4em .533em;
+    }
+    .duration-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(6em, 1fr));
+      gap: .4em;
+    }
     .preview {
       padding: .8em;
       border-radius: var(--radius);
@@ -1456,11 +1508,20 @@ function appHtml() {
         </div>
         <div class="field">
           <label>Boshlanish</label>
-          <input id="startTimeInput" type="time" required>
+          <input id="startTimeInput" type="text" inputmode="none" autocomplete="off" readonly required placeholder="Boshlanish">
         </div>
         <div class="field">
           <label>Tugash</label>
-          <input id="endTimeInput" type="time">
+          <input id="endTimeInput" type="text" inputmode="none" autocomplete="off" readonly placeholder="Tugash">
+        </div>
+        <div class="field full">
+          <label>Vaqt tanlash</label>
+          <div class="time-tabs">
+            <button type="button" id="startTimeTab" data-time-field="start">Boshlanish</button>
+            <button type="button" id="endTimeTab" data-time-field="end">Tugash</button>
+          </div>
+          <div id="timeGrid" class="time-grid"></div>
+          <div id="durationGrid" class="duration-grid"></div>
         </div>
         <div class="field full">
           <label>Mijoz</label>
@@ -1534,6 +1595,7 @@ function appHtml() {
       var adminPanel = document.getElementById("adminPanel");
       var settingsPanel = document.getElementById("settingsPanel");
       var clientSuggestions = document.getElementById("clientSuggestions");
+      var activeTimeField = "start";
       var audioContext = null;
       var suppressClickUntil = 0;
       var dragState = null;
@@ -1706,6 +1768,25 @@ function appHtml() {
         return pad2(Number(match[1])) + ":" + match[2];
       }
 
+      function addMinutes(time, minutes) {
+        var normalized = normalizeTimeInput(time);
+        if (!normalized) return "";
+        var parts = normalized.split(":").map(Number);
+        var total = (parts[0] * 60 + parts[1] + Number(minutes || 0)) % (24 * 60);
+        if (total < 0) total += 24 * 60;
+        return pad2(Math.floor(total / 60)) + ":" + pad2(total % 60);
+      }
+
+      function timeOptions() {
+        var options = [];
+        for (var hour = 8; hour <= 23; hour += 1) {
+          options.push(pad2(hour) + ":00");
+          options.push(pad2(hour) + ":30");
+        }
+        options.unshift("07:00", "07:30");
+        return options;
+      }
+
       function splitTimeRange(value) {
         var parts = String(value || "").replace(/\\s+/g, "").replace(/[–—]/g, "-").split("-");
         return {
@@ -1728,6 +1809,69 @@ function appHtml() {
         var time = selectedTimeRange();
         var client = document.getElementById("clientInput").value.trim();
         return [selectedIcon ? selectedIcon + dateText : dateText, time, client].filter(Boolean).join(" ").trim();
+      }
+
+      function renderTimePicker() {
+        var startInput = document.getElementById("startTimeInput");
+        var endInput = document.getElementById("endTimeInput");
+        var grid = document.getElementById("timeGrid");
+        var durationGrid = document.getElementById("durationGrid");
+        if (!startInput || !endInput || !grid || !durationGrid) return;
+        document.getElementById("startTimeTab").classList.toggle("active", activeTimeField === "start");
+        document.getElementById("endTimeTab").classList.toggle("active", activeTimeField === "end");
+        var activeValue = activeTimeField === "start" ? startInput.value : endInput.value;
+        grid.innerHTML = timeOptions().map(function (time) {
+          return '<button type="button" data-time-value="' + time + '" class="' + (time === activeValue ? "active" : "") + '">' + time + '</button>';
+        }).join("");
+        var durations = [
+          { minutes: 30, label: "+30 daq" },
+          { minutes: 60, label: "+1 soat" },
+          { minutes: 90, label: "+1.5 soat" },
+          { minutes: 120, label: "+2 soat" },
+          { minutes: 180, label: "+3 soat" },
+          { minutes: 240, label: "+4 soat" },
+        ];
+        durationGrid.innerHTML = durations.map(function (duration) {
+          var endValue = startInput.value ? addMinutes(startInput.value, duration.minutes) : "";
+          var active = endValue && endValue === endInput.value;
+          return '<button type="button" data-duration-minutes="' + duration.minutes + '" class="' + (active ? "active" : "") + '">' + duration.label + '</button>';
+        }).join("");
+      }
+
+      function setActiveTimeField(field) {
+        activeTimeField = field === "end" ? "end" : "start";
+        renderTimePicker();
+      }
+
+      function setSelectedTime(value) {
+        var normalized = normalizeTimeInput(value);
+        if (!normalized) return;
+        var startInput = document.getElementById("startTimeInput");
+        var endInput = document.getElementById("endTimeInput");
+        if (activeTimeField === "start") {
+          startInput.value = normalized;
+          if (!endInput.value) {
+            endInput.value = addMinutes(normalized, 60);
+          }
+        } else {
+          endInput.value = normalized;
+        }
+        updatePreview();
+        renderTimePicker();
+        haptic("light");
+      }
+
+      function setDuration(minutes) {
+        var start = document.getElementById("startTimeInput").value;
+        if (!start) {
+          setStatus("Avval boshlanish vaqtini tanlang.", true);
+          setActiveTimeField("start");
+          return;
+        }
+        document.getElementById("endTimeInput").value = addMinutes(start, Number(minutes || 0));
+        setActiveTimeField("end");
+        updatePreview();
+        haptic("light");
       }
 
       async function api(path, options) {
@@ -1846,11 +1990,55 @@ function appHtml() {
         document.querySelectorAll(".column.drop-target").forEach(function (column) {
           column.classList.remove("drop-target");
         });
+        document.querySelectorAll(".card.drop-before").forEach(function (card) {
+          card.classList.remove("drop-before");
+        });
+        document.querySelectorAll(".cards.drop-end").forEach(function (cards) {
+          cards.classList.remove("drop-end");
+        });
       }
 
       function columnAtPoint(x, y) {
         var element = document.elementFromPoint(x, y);
         return element ? element.closest("[data-column-id]") : null;
+      }
+
+      function dropInfoForColumn(column, y) {
+        var columnId = Number(column.getAttribute("data-column-id"));
+        var cardElements = Array.prototype.slice.call(column.querySelectorAll("[data-card-id]"))
+          .filter(function (element) {
+            return !dragState || String(element.getAttribute("data-card-id")) !== String(dragState.card.id);
+          });
+        var beforeElement = null;
+        for (var index = 0; index < cardElements.length; index += 1) {
+          var rect = cardElements[index].getBoundingClientRect();
+          if (y < rect.top + rect.height / 2) {
+            beforeElement = cardElements[index];
+            break;
+          }
+        }
+        var orderedIds = cardsForColumn(columnId)
+          .map(function (card) { return String(card.id); })
+          .filter(function (id) {
+            return !dragState || id !== String(dragState.card.id);
+          });
+        var beforeId = beforeElement ? beforeElement.getAttribute("data-card-id") : null;
+        var beforeIndex = beforeId ? orderedIds.indexOf(String(beforeId)) : orderedIds.length;
+        var prevCardId = beforeIndex > 0 ? orderedIds[beforeIndex - 1] : null;
+        return {
+          columnId: columnId,
+          prevCardId: prevCardId ? Number(prevCardId) : null,
+          beforeElement: beforeElement,
+          atEnd: !beforeElement,
+        };
+      }
+
+      function previousCardId(card) {
+        var cards = cardsForColumn(card.columnId);
+        var index = cards.findIndex(function (item) {
+          return String(item.id) === String(card.id);
+        });
+        return index > 0 ? Number(cards[index - 1].id) : null;
       }
 
       function updateDragGhost(x, y) {
@@ -1867,9 +2055,20 @@ function appHtml() {
         var column = columnAtPoint(x, y);
         if (column) {
           column.classList.add("drop-target");
-          dragState.targetColumnId = Number(column.getAttribute("data-column-id"));
+          var dropInfo = dropInfoForColumn(column, y);
+          dragState.targetColumnId = dropInfo.columnId;
+          dragState.targetPrevCardId = dropInfo.prevCardId;
+          if (dropInfo.beforeElement) {
+            dropInfo.beforeElement.classList.add("drop-before");
+          } else {
+            var cardsEl = column.querySelector(".cards");
+            if (cardsEl) {
+              cardsEl.classList.add("drop-end");
+            }
+          }
         } else {
           dragState.targetColumnId = null;
+          dragState.targetPrevCardId = null;
         }
       }
 
@@ -1949,11 +2148,13 @@ function appHtml() {
         var active = dragState.active;
         var card = dragState.card;
         var targetColumnId = dragState.targetColumnId;
+        var targetPrevCardId = dragState.targetPrevCardId;
         var sourceColumnId = Number(card.columnId);
+        var sourcePrevCardId = previousCardId(card);
         cleanupDrag();
         if (!active) return;
         suppressClickUntil = Date.now() + 900;
-        if (!targetColumnId || targetColumnId === sourceColumnId) {
+        if (!targetColumnId || (targetColumnId === sourceColumnId && targetPrevCardId === sourcePrevCardId)) {
           setStatus("Card joyi o'zgarmadi.");
           return;
         }
@@ -1961,7 +2162,7 @@ function appHtml() {
         try {
           var data = await api("/api/cards/" + card.id + "/move", {
             method: "POST",
-            body: { columnId: targetColumnId }
+            body: { columnId: targetColumnId, prevCardId: targetPrevCardId }
           });
           state = data.state;
           render();
@@ -1996,6 +2197,7 @@ function appHtml() {
           cardButton: cardButton,
           card: card,
           targetColumnId: Number(card.columnId),
+          targetPrevCardId: previousCardId(card),
           ghost: null
         };
         cardButton.classList.add("pressed");
@@ -2089,6 +2291,7 @@ function appHtml() {
           document.getElementById("dateInput").required = false;
           document.getElementById("startTimeInput").required = false;
           document.getElementById("clientInput").required = false;
+          activeTimeField = parsedTime.end ? "end" : "start";
         } else {
           document.getElementById("cardForm").reset();
           selectedIcon = "⭐️";
@@ -2098,9 +2301,11 @@ function appHtml() {
           document.getElementById("dateInput").required = true;
           document.getElementById("startTimeInput").required = true;
           document.getElementById("clientInput").required = true;
+          activeTimeField = "start";
         }
         document.getElementById("commentInput").value = "";
         updatePreview();
+        renderTimePicker();
         modalEl.classList.add("open");
       }
 
@@ -2224,6 +2429,30 @@ function appHtml() {
       });
       ["dateInput", "startTimeInput", "endTimeInput"].forEach(function (id) {
         document.getElementById(id).addEventListener("input", updatePreview);
+      });
+      ["startTimeInput", "endTimeInput"].forEach(function (id) {
+        document.getElementById(id).addEventListener("click", function () {
+          setActiveTimeField(id === "endTimeInput" ? "end" : "start");
+        });
+        document.getElementById(id).addEventListener("focus", function () {
+          setActiveTimeField(id === "endTimeInput" ? "end" : "start");
+        });
+      });
+      document.getElementById("startTimeTab").addEventListener("click", function () {
+        setActiveTimeField("start");
+      });
+      document.getElementById("endTimeTab").addEventListener("click", function () {
+        setActiveTimeField("end");
+      });
+      document.getElementById("timeGrid").addEventListener("click", function (event) {
+        var button = event.target.closest("[data-time-value]");
+        if (!button) return;
+        setSelectedTime(button.getAttribute("data-time-value"));
+      });
+      document.getElementById("durationGrid").addEventListener("click", function (event) {
+        var button = event.target.closest("[data-duration-minutes]");
+        if (!button) return;
+        setDuration(button.getAttribute("data-duration-minutes"));
       });
       document.getElementById("clientInput").addEventListener("input", function () {
         updatePreview();
