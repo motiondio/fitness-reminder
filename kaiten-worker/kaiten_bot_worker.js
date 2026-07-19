@@ -10,7 +10,7 @@ const CONFIG = {
   clientEndRow: 1000,
 };
 
-const APP_VERSION = "kaiten-miniapp-2026-07-19-17";
+const APP_VERSION = "kaiten-miniapp-2026-07-19-18";
 
 const ICON_GROUPS = [
   {
@@ -1038,13 +1038,13 @@ function appHtml() {
 <html lang="uz">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>ISOMEDIA Shooting</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <style>
     :root {
       color-scheme: dark;
-      --font-base: 14px;
+      --font-base: 13px;
       --bg: #171717;
       --surface: #242424;
       --column: rgba(28,28,28,.9);
@@ -1102,12 +1102,12 @@ function appHtml() {
       font: inherit;
     }
     button {
-      min-height: 2.667em;
+      min-height: 2.5em;
       border: 1px solid var(--line);
       border-radius: var(--radius);
       background: var(--surface);
       color: var(--text);
-      padding: .6em .8em;
+      padding: .533em .7em;
       font-weight: 650;
       cursor: pointer;
     }
@@ -1119,7 +1119,7 @@ function appHtml() {
       margin: 0 auto;
       height: 100vh;
       height: 100dvh;
-      padding: .8em .8em calc(1.467em + env(safe-area-inset-bottom));
+      padding: .667em .667em calc(1.2em + env(safe-area-inset-bottom));
       display: flex;
       flex-direction: column;
       overflow: hidden;
@@ -1127,16 +1127,16 @@ function appHtml() {
     .topbar {
       display: grid;
       grid-template-columns: 1fr auto;
-      gap: .8em;
+      gap: .667em;
       align-items: center;
-      margin-bottom: .8em;
+      margin-bottom: .667em;
     }
     h1 { margin: 0; font-size: 1.467em; line-height: 1.15; }
     .meta { color: var(--muted); font-size: .867em; margin-top: 4px; }
     .toolbar {
       display: flex;
       flex-wrap: wrap;
-      gap: .533em;
+      gap: .467em;
       justify-content: flex-end;
     }
     .toolbar button {
@@ -1146,8 +1146,8 @@ function appHtml() {
       flex: 1 1 auto;
       min-height: 0;
       display: grid;
-      grid-template-columns: repeat(3, minmax(18.667em, 1fr));
-      gap: .933em;
+      grid-template-columns: repeat(3, minmax(17.6em, 1fr));
+      gap: .733em;
       align-items: start;
       overflow-x: auto;
       overflow-y: hidden;
@@ -1160,7 +1160,7 @@ function appHtml() {
       touch-action: none;
     }
     .column {
-      min-width: 18.667em;
+      min-width: 17.6em;
       height: 100%;
       min-height: 0;
       background: var(--column);
@@ -1182,9 +1182,9 @@ function appHtml() {
     .column-head {
       display: grid;
       grid-template-columns: 1fr auto;
-      gap: .533em;
+      gap: .467em;
       align-items: center;
-      padding: .8em;
+      padding: .667em;
       border-bottom: 1px solid var(--line);
     }
     .column-title { font-size: 1.2em; font-weight: 750; }
@@ -1202,8 +1202,8 @@ function appHtml() {
       display: grid;
       grid-auto-rows: max-content;
       align-content: start;
-      gap: .667em;
-      padding: .667em;
+      gap: .533em;
+      padding: .533em;
       overflow-y: auto;
       overscroll-behavior: contain;
       -webkit-overflow-scrolling: touch;
@@ -1212,14 +1212,14 @@ function appHtml() {
       display: flex;
       flex-direction: column;
       align-items: flex-start;
-      gap: .6em;
+      gap: .5em;
       width: 100%;
       max-width: 100%;
       height: auto;
       background: var(--card);
       border: 1px solid var(--line);
       border-radius: var(--radius);
-      padding: .8em;
+      padding: .667em;
       text-align: left;
       min-height: 0;
       line-height: 1.35;
@@ -1312,7 +1312,7 @@ function appHtml() {
       background: var(--surface);
       border: 1px solid var(--line);
       border-radius: 12px;
-      padding: .933em;
+      padding: .8em;
       box-shadow: 0 24px 80px rgba(0,0,0,.44);
     }
     .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .667em; }
@@ -1329,14 +1329,23 @@ function appHtml() {
     label { color: var(--muted); font-size: .867em; font-weight: 650; }
     input, select, textarea {
       width: 100%;
-      min-height: 2.8em;
+      min-height: 2.667em;
       border: 1px solid var(--line);
       border-radius: var(--radius);
       background: var(--field);
       color: var(--text);
-      padding: .6em .667em;
+      padding: .533em .6em;
+    }
+    .time-trigger {
+      cursor: pointer;
+      caret-color: transparent;
     }
     textarea { min-height: 5.733em; resize: vertical; }
+    @supports (-webkit-touch-callout: none) {
+      input, select, textarea {
+        font-size: 16px;
+      }
+    }
     .client-combobox { position: relative; }
     .client-suggestions {
       position: absolute;
@@ -1440,24 +1449,24 @@ function appHtml() {
       display: none;
       align-items: end;
       justify-content: center;
-      padding: 14px;
+      padding: 12px;
       background: rgba(0,0,0,.62);
     }
     .time-modal.open { display: flex; }
     .time-sheet {
-      width: min(520px, 100%);
+      width: min(480px, 100%);
       background: var(--surface);
       border: 1px solid var(--line);
       border-radius: 18px;
-      padding: .933em;
+      padding: .8em;
       box-shadow: 0 24px 80px rgba(0,0,0,.5);
     }
     .time-head {
       display: grid;
       grid-template-columns: 3em 1fr 3em;
-      gap: .667em;
+      gap: .533em;
       align-items: center;
-      margin-bottom: .8em;
+      margin-bottom: .667em;
     }
     .time-head strong {
       text-align: center;
@@ -1481,8 +1490,8 @@ function appHtml() {
       position: relative;
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 1.333em;
-      height: 15.333em;
+      gap: 1em;
+      height: 13.8em;
       overflow: hidden;
       -webkit-mask-image: linear-gradient(to bottom, transparent, #000 22%, #000 78%, transparent);
       mask-image: linear-gradient(to bottom, transparent, #000 22%, #000 78%, transparent);
@@ -1492,7 +1501,7 @@ function appHtml() {
       left: 0;
       right: 0;
       top: 50%;
-      height: 2.933em;
+      height: 2.667em;
       transform: translateY(-50%);
       border-radius: 999px;
       background: rgba(255,255,255,.08);
@@ -1506,7 +1515,7 @@ function appHtml() {
       z-index: 1;
       height: 100%;
       overflow-y: auto;
-      padding: 6.2em 0;
+      padding: 5.6em 0;
       overscroll-behavior: contain;
       scroll-snap-type: y mandatory;
       scrollbar-width: none;
@@ -1515,13 +1524,13 @@ function appHtml() {
     .wheel-column::-webkit-scrollbar { display: none; }
     .wheel-option {
       width: 100%;
-      min-height: 2.933em;
+      min-height: 2.667em;
       border: 0;
       border-radius: 0;
       background: transparent;
       scroll-snap-align: center;
       color: var(--muted);
-      font-size: 1.733em;
+      font-size: 1.6em;
       font-weight: 650;
       text-align: center;
       transition: color .12s ease, transform .12s ease;
@@ -1617,7 +1626,7 @@ function appHtml() {
       .topbar { grid-template-columns: 1fr; }
       .toolbar { justify-content: stretch; }
       .toolbar button { flex: 1 1 auto; }
-      .board { grid-template-columns: repeat(3, 84vw); scroll-snap-type: x mandatory; }
+      .board { grid-template-columns: repeat(3, 80vw); scroll-snap-type: x mandatory; }
       .column { scroll-snap-align: start; }
       .form-grid { grid-template-columns: 1fr; }
       .user-row { grid-template-columns: 1fr; }
@@ -1662,11 +1671,11 @@ function appHtml() {
         </div>
         <div class="field">
           <label>Boshlanish</label>
-          <input id="startTimeInput" type="text" inputmode="none" autocomplete="off" readonly required placeholder="Boshlanish">
+          <input id="startTimeInput" class="time-trigger" type="text" inputmode="none" autocomplete="off" readonly required placeholder="Boshlanish">
         </div>
         <div class="field">
           <label>Tugash</label>
-          <input id="endTimeInput" type="text" inputmode="none" autocomplete="off" readonly placeholder="Tugash">
+          <input id="endTimeInput" class="time-trigger" type="text" inputmode="none" autocomplete="off" readonly placeholder="Tugash">
         </div>
         <div class="field full">
           <label>Mijoz</label>
@@ -2121,6 +2130,17 @@ function appHtml() {
         timeModalEl.classList.add("open");
         timeModalEl.setAttribute("aria-hidden", "false");
         haptic("light");
+      }
+
+      function openTimeFromTrigger(event, field) {
+        if (event) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+        if (document.activeElement && typeof document.activeElement.blur === "function") {
+          document.activeElement.blur();
+        }
+        openTimeModal(field);
       }
 
       function closeTimeModal() {
@@ -2728,12 +2748,19 @@ function appHtml() {
       ["dateInput", "startTimeInput", "endTimeInput"].forEach(function (id) {
         document.getElementById(id).addEventListener("input", updatePreview);
       });
-      document.getElementById("startTimeInput").addEventListener("click", function () {
-        openTimeModal("start");
-      });
-      document.getElementById("endTimeInput").addEventListener("click", function () {
-        openTimeModal("end");
-      });
+      function attachTimeTrigger(id, field) {
+        var input = document.getElementById(id);
+        input.addEventListener("pointerdown", function (event) {
+          openTimeFromTrigger(event, field);
+        });
+        input.addEventListener("keydown", function (event) {
+          if (event.key === "Enter" || event.key === " ") {
+            openTimeFromTrigger(event, field);
+          }
+        });
+      }
+      attachTimeTrigger("startTimeInput", "start");
+      attachTimeTrigger("endTimeInput", "end");
       timeModalEl.addEventListener("click", function (event) {
         if (event.target === timeModalEl) {
           closeTimeModal();

@@ -117,12 +117,13 @@ curl -X POST "https://api.telegram.org/bot$BOT_TOKEN/setChatMenuButton" \
 - Yangi mijozni alohida menu orqali `MIJOZLAR BAZASI!A6:A1000` ichidagi birinchi bo'sh qatorga yozish
 - Card title edit qilish
 - Syomka yaratishda boshlanish va tugash vaqtini iPhone budilnikiga o'xshash soat/daqiqa wheel picker orqali tanlash
+- Vaqt picker Telegram iOS WebView'da sahifani zoom qilmasligi uchun input focusi bloklandi
 - Mavjud card title ichidan icon, sana, vaqt va mijozni ajratib olish
 - Cardni ustundan ustunga o'tkazish
 - Cardni uzoq bosib turib boshqa ustunga drag qilish
 - Cardni uzoq bosib turib shu ustun ichida tepa-pastga reorder qilish
 - Yangi zakaz qo'shilganda qisqa riser sound va haptic feedback
-- Fixed compact UI: scale sozlamasisiz, odatdagidan taxminan 7% kichikroq
+- Fixed compact UI: scale sozlamasisiz, odatdagidan taxminan 12% kichikroq
 - Auto, Dark, White theme sozlamalari
 - Modal va panellar tashqarisiga bosilganda asosiy ekranga qaytadi
 - Card boxlar ichidagi title va Kaiten tag pilllari sig'ishi uchun kontent bo'yicha balandlashadi
