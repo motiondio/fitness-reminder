@@ -37,9 +37,12 @@ Bog'liq notelar:
 - Auto-qazo: keyingi namoz kirsa oldingi belgilanmagan namoz qazo bo'ladi
 - Bomdod muddati: quyosh chiqishigacha
 - Xufton muddati: keyingi Bomdodgacha; o'tib ketsa Xufton + Vitr qazo bo'ladi
-- Telegram Mini App: `/app`, `GET /api/app-state`, `POST /api/checklist-toggle`, `POST /api/prayer-done`, `POST /api/qazo-adjust`, `POST /api/qazo-bulk`
-- Mini App bo'limlari: Fitness, Namoz, Qazo
+- Telegram Mini App: `/app`, `GET /api/app-state`, `POST /api/checklist-toggle`, `POST /api/prayer-done`, `POST /api/qazo-adjust`, `POST /api/qazo-bulk`, `POST /api/tasbeh`
+- Mini App bo'limlari: Fitness, Namoz, Qazo, Tasbeh
 - Fitness Mini App: chap/o'ng swipe va `‹` / `›` tugmalari bilan kunlar orasida o'tish
+- Fitness `Hammasi` va `Reset`: faqat ko'rinib turgan sana checklistiga ta'sir qiladi
+- Mini App background: har bo'limda 50-60% qorong'i blur rasm
+- Tasbeh Mini App: 33/99 sanoq, 10 zikr, avtomatik keyingi zikr, umumiy sanoq KV xotirada
 - Mini App motion: swipe slide, tab fade, checklist update pop, reduced-motion support
 - Mini App xavfsizligi: Telegram `initData` tekshiruvi, `MINI_APP_ALLOWED_USER_IDS`
 

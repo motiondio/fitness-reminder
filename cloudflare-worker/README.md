@@ -197,6 +197,8 @@ Mini App bo'limlari:
 - Fitness: kunlar bo'yicha checklist, chap/o'ng swipe yoki `‹` / `›` tugmalari bilan sana almashtirish, silliq motion animatsiyalar, `Hammasi`, `Reset`
 - Namoz: bugungi namoz vaqtlari, `O'qidim`, `Qazo`
 - Qazo: Bomdod, Peshin, Asr, Shom, Xufton, Vitr sonlarini `+`, `-` yoki qo'lda raqam kiritib saqlash
+- Tasbeh: 33/99 talik sanoq, 10 xil zikr, sanoq tugaganda keyingi zikrga avtomatik o'tish, umumiy zikrlar sonini doimiy saqlash
+- Har bo'limda mavzuga mos qorong'i/blur background rasm bor.
 
 Mini App API endpointlari:
 
@@ -205,6 +207,7 @@ Mini App API endpointlari:
 - `POST /api/prayer-done`
 - `POST /api/qazo-adjust`
 - `POST /api/qazo-bulk`
+- `POST /api/tasbeh`
 
 Xavfsizlik:
 
@@ -224,6 +227,7 @@ State qayerga yoziladi:
 - `MINI_APP_FITNESS_CHAT_ID` bo'lmasa, fitness checklist ham shu chat ID bo'yicha ishlaydi.
 - Hammasi `CHECKLIST_STATE` KV binding ichida saqlanadi.
 - Fitness checklist har sana uchun alohida saqlanadi. Masalan, 1-kunda belgilangan bandlar 2-kunga o'tib ketmaydi.
+- Tasbeh umumiy sanog'i ham `CHECKLIST_STATE` ichida saqlanadi va ertasi kuni ham davom etadi.
 
 ## Namoz eslatmalari
 

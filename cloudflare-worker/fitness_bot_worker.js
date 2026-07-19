@@ -108,6 +108,19 @@ const QAZO_PRAYERS = [
   { key: "witr", label: "Vitr", aliases: ["vitr", "witr"] },
 ];
 
+const TASBEH_ZIKRS = [
+  { text: "Subhanalloh", note: "Alloh har qanday nuqsondan pok." },
+  { text: "Alhamdulillah", note: "Hamd va shukr Allohgadir." },
+  { text: "Allohu akbar", note: "Alloh eng buyuk." },
+  { text: "La ilaha illalloh", note: "Allohdan boshqa iloh yo'q." },
+  { text: "Astag'firulloh", note: "Allohdan mag'firat so'rash." },
+  { text: "Subhanallohi va bihamdihi", note: "Poklik va hamd Allohga." },
+  { text: "Subhanallohil azim", note: "Ulug' Alloh pokdir." },
+  { text: "La hawla va la quwwata illa billah", note: "Kuch-quvvat faqat Allohdandir." },
+  { text: "Allohumma solli ala Muhammad", note: "Payg'ambarimizga salovat." },
+  { text: "Hasbiyallohu la ilaha illa Huwa", note: "Menga Alloh kifoya." },
+];
+
 function tashkentDate(offsetDays = 0) {
   const now = new Date();
   const tashkent = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Tashkent" }));
@@ -873,6 +886,47 @@ function qazoDashboardKey(chatId, threadId) {
   return `prayer:qazo-dashboard:${chatId}:${threadId || "general"}`;
 }
 
+function tasbehStateKey(chatId) {
+  return `tasbeh:state:${chatId}`;
+}
+
+function normalizeTasbehState(rawState = {}) {
+  const target = [33, 99].includes(Number(rawState.target)) ? Number(rawState.target) : 33;
+  const zikrIndex = Math.max(0, Math.min(TASBEH_ZIKRS.length - 1, Number(rawState.zikrIndex || 0) || 0));
+  const current = Math.max(0, Math.min(target - 1, Number(rawState.current || 0) || 0));
+  const total = Math.max(0, Number(rawState.total || 0) || 0);
+  return { target, zikrIndex, current, total };
+}
+
+async function getTasbehState(env, chatId) {
+  const raw = await kvGet(env, tasbehStateKey(chatId));
+  if (raw) {
+    try {
+      return normalizeTasbehState(JSON.parse(raw));
+    } catch (_) {
+      await kvDelete(env, tasbehStateKey(chatId));
+    }
+  }
+  return normalizeTasbehState();
+}
+
+async function setTasbehState(env, chatId, state) {
+  const nextState = normalizeTasbehState(state);
+  await kvPut(env, tasbehStateKey(chatId), JSON.stringify(nextState), 60 * 60 * 24 * 365 * 5);
+  return nextState;
+}
+
+function tasbehStateForClient(state) {
+  const normalized = normalizeTasbehState(state);
+  const zikr = TASBEH_ZIKRS[normalized.zikrIndex] || TASBEH_ZIKRS[0];
+  return {
+    ...normalized,
+    zikr,
+    zikrs: TASBEH_ZIKRS,
+    progress: `${normalized.current} / ${normalized.target}`,
+  };
+}
+
 async function isPrayerDone(env, chatId, dateKey, prayerKey) {
   return Boolean(await kvGet(env, prayerDoneKey(chatId, dateKey, prayerKey)));
 }
@@ -1504,6 +1558,7 @@ async function buildMiniAppState(env, options = {}) {
   const mask = await getChecklistMask(env, fitnessChatId, targetDate);
   const schedule = await getPrayerSchedule(env, nowParts.dateKey);
   const counts = await getQazoCounts(env, chatId);
+  const tasbehState = await getTasbehState(env, chatId);
   const prayerRows = [];
 
   for (const prayer of schedule.timings) {
@@ -1558,6 +1613,7 @@ async function buildMiniAppState(env, options = {}) {
         count: counts[prayer.key] || 0,
       })),
     },
+    tasbeh: tasbehStateForClient(tasbehState),
   };
 }
 
@@ -1590,7 +1646,7 @@ async function handleMiniAppApi(request, env) {
   requestedFitnessDate = body.fitness_date || body.date || requestedFitnessDate;
 
   if (url.pathname === "/api/checklist-toggle") {
-    const targetDate = body.date ? dateFromCallback(body.date) : tashkentDate(0);
+    const targetDate = dateFromMiniApp(body.date || body.fitness_date || requestedFitnessDate || tashkentNowParts().dateKey);
     const tasks = checklistTasks(targetDate, env);
     const allMask = (1 << tasks.length) - 1;
     const currentMask = await getChecklistMask(env, fitnessChatId, targetDate);
@@ -1661,6 +1717,50 @@ async function handleMiniAppApi(request, env) {
     return jsonResponse({ ok: true, state: await buildMiniAppState(env, { fitnessDate: requestedFitnessDate }) });
   }
 
+  if (url.pathname === "/api/tasbeh") {
+    const action = String(body.action || "increment");
+    let tasbehState = await getTasbehState(env, chatId);
+
+    if (action === "set_target") {
+      const target = Number(body.target);
+      if (![33, 99].includes(target)) {
+        return jsonResponse({ ok: false, error: "Tasbeh sanoq turi noto'g'ri." }, 400);
+      }
+      tasbehState = await setTasbehState(env, chatId, {
+        ...tasbehState,
+        target,
+        current: Math.min(tasbehState.current, target - 1),
+      });
+    } else if (action === "reset_current") {
+      tasbehState = await setTasbehState(env, chatId, { ...tasbehState, current: 0 });
+    } else if (action === "next") {
+      tasbehState = await setTasbehState(env, chatId, {
+        ...tasbehState,
+        current: 0,
+        zikrIndex: (tasbehState.zikrIndex + 1) % TASBEH_ZIKRS.length,
+      });
+    } else if (action === "increment") {
+      const nextTotal = tasbehState.total + 1;
+      const nextCurrent = tasbehState.current + 1;
+      tasbehState = nextCurrent >= tasbehState.target
+        ? await setTasbehState(env, chatId, {
+          ...tasbehState,
+          total: nextTotal,
+          current: 0,
+          zikrIndex: (tasbehState.zikrIndex + 1) % TASBEH_ZIKRS.length,
+        })
+        : await setTasbehState(env, chatId, {
+          ...tasbehState,
+          total: nextTotal,
+          current: nextCurrent,
+        });
+    } else {
+      return jsonResponse({ ok: false, error: "Tasbeh action tushunarsiz." }, 400);
+    }
+
+    return jsonResponse({ ok: true, state: await buildMiniAppState(env, { fitnessDate: requestedFitnessDate }) });
+  }
+
   return jsonResponse({ ok: false, error: "Endpoint topilmadi." }, 404);
 }
 
@@ -1688,6 +1788,10 @@ function miniAppHtml() {
       --radius: 8px;
       --motion-spring: cubic-bezier(0.2, 0.8, 0.2, 1);
       --motion-soft: cubic-bezier(0.16, 1, 0.3, 1);
+      --bg-fitness-image: url("https://images.unsplash.com/photo-1534438327276-14e5300c3a48?auto=format&fit=crop&w=1200&q=70");
+      --bg-prayer-image: url("https://images.unsplash.com/photo-1564769625905-50e93615e769?auto=format&fit=crop&w=1200&q=70");
+      --bg-qazo-image: url("https://images.unsplash.com/photo-1512632578888-169bbbc64f33?auto=format&fit=crop&w=1200&q=70");
+      --bg-tasbeh-image: url("https://images.unsplash.com/photo-1609599006353-e629aaabfeae?auto=format&fit=crop&w=1200&q=70");
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
     }
     * {
@@ -1727,7 +1831,7 @@ function miniAppHtml() {
     }
     .tabs {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(4, 1fr);
       gap: 6px;
       background: var(--surface);
       border: 1px solid var(--line);
@@ -1791,6 +1895,72 @@ function miniAppHtml() {
       border-radius: var(--radius);
       overflow: hidden;
       box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+    }
+    .panel.with-bg {
+      position: relative;
+      isolation: isolate;
+      color: #fff;
+      background: #101820;
+    }
+    .panel.with-bg::before,
+    .panel.with-bg::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+    .panel.with-bg::before {
+      z-index: -2;
+      background-image: var(--panel-image);
+      background-size: cover;
+      background-position: center;
+      filter: blur(10px) saturate(1.08);
+      transform: scale(1.08);
+      opacity: 0.9;
+    }
+    .panel.with-bg::after {
+      z-index: -1;
+      background:
+        linear-gradient(180deg, rgba(0, 0, 0, 0.52), rgba(0, 0, 0, 0.64)),
+        rgba(0, 0, 0, 0.52);
+    }
+    .theme-fitness {
+      --panel-image: var(--bg-fitness-image);
+    }
+    .theme-prayer {
+      --panel-image: var(--bg-prayer-image);
+    }
+    .theme-qazo {
+      --panel-image: var(--bg-qazo-image);
+    }
+    .theme-tasbeh {
+      --panel-image: var(--bg-tasbeh-image);
+    }
+    .panel.with-bg .panel-head,
+    .panel.with-bg .row,
+    .panel.with-bg .qazo-row {
+      border-color: rgba(255, 255, 255, 0.18);
+    }
+    .panel.with-bg .summary,
+    .panel.with-bg .date-pill span,
+    .panel.with-bg .time,
+    .panel.with-bg small {
+      color: rgba(255, 255, 255, 0.76);
+    }
+    .panel.with-bg button:not(.primary) {
+      color: #fff;
+      background: rgba(255, 255, 255, 0.13);
+      border-color: rgba(255, 255, 255, 0.16);
+      backdrop-filter: blur(12px);
+    }
+    .panel.with-bg .row,
+    .panel.with-bg .qazo-row {
+      background: rgba(255, 255, 255, 0.02);
+    }
+    .panel.with-bg input {
+      color: #fff;
+      background: rgba(0, 0, 0, 0.26);
+      border-color: rgba(255, 255, 255, 0.18);
     }
     .panel-head {
       padding: 14px;
@@ -1950,6 +2120,77 @@ function miniAppHtml() {
       font: inherit;
       font-weight: 650;
     }
+    .tasbeh-head {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px;
+      align-items: start;
+    }
+    .tasbeh-total {
+      min-width: 92px;
+      padding: 8px 10px;
+      border-radius: var(--radius);
+      background: rgba(255, 255, 255, 0.13);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      text-align: center;
+      backdrop-filter: blur(12px);
+    }
+    .tasbeh-total strong {
+      display: block;
+      font-size: 20px;
+      line-height: 1.1;
+    }
+    .tasbeh-total span {
+      color: rgba(255, 255, 255, 0.74);
+      font-size: 12px;
+      font-weight: 650;
+    }
+    .segmented {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 6px;
+      padding: 12px 14px 0;
+    }
+    .segmented button.active {
+      background: var(--button);
+      border-color: var(--button);
+      color: var(--button-text);
+    }
+    .tasbeh-counter {
+      display: grid;
+      place-items: center;
+      padding: 18px 14px;
+    }
+    .tasbeh-button {
+      width: min(230px, 72vw);
+      aspect-ratio: 1;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: rgba(255, 255, 255, 0.16);
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.2),
+        0 18px 50px rgba(0, 0, 0, 0.22);
+      backdrop-filter: blur(14px);
+      color: #fff;
+    }
+    .tasbeh-button:active {
+      transform: scale(0.965);
+    }
+    .tasbeh-count {
+      display: grid;
+      gap: 6px;
+      text-align: center;
+    }
+    .tasbeh-count strong {
+      font-size: clamp(44px, 16vw, 72px);
+      line-height: 0.95;
+    }
+    .tasbeh-count span {
+      color: rgba(255, 255, 255, 0.76);
+      font-size: 14px;
+    }
     .status {
       min-height: 22px;
       margin-top: 10px;
@@ -2083,6 +2324,7 @@ function miniAppHtml() {
       <button class="active" data-tab="fitness">Fitness</button>
       <button data-tab="prayer">Namoz</button>
       <button data-tab="qazo">Qazo</button>
+      <button data-tab="tasbeh">Tasbeh</button>
     </nav>
 
     <main id="app"></main>
@@ -2232,6 +2474,7 @@ function miniAppHtml() {
         if (activeTab === "fitness") renderFitness();
         if (activeTab === "prayer") renderPrayer();
         if (activeTab === "qazo") renderQazo();
+        if (activeTab === "tasbeh") renderTasbeh();
         runMotion(motion);
       }
 
@@ -2246,7 +2489,7 @@ function miniAppHtml() {
           '</button>';
         }).join("");
         app.innerHTML =
-          '<section class="panel">' +
+          '<section class="panel with-bg theme-fitness">' +
             '<div class="panel-head">' +
               '<div class="day-nav">' +
                 '<button data-action="fitness-prev" aria-label="Oldingi kun">&lsaquo;</button>' +
@@ -2292,7 +2535,7 @@ function miniAppHtml() {
           '</div>';
         }).join("");
         app.innerHTML =
-          '<section class="panel">' +
+          '<section class="panel with-bg theme-prayer">' +
             '<div class="panel-head">' +
               '<h2>Namoz vaqtlari</h2>' +
               '<div class="summary">' +
@@ -2315,7 +2558,7 @@ function miniAppHtml() {
           '</div>';
         }).join("");
         app.innerHTML =
-          '<section class="panel">' +
+          '<section class="panel with-bg theme-qazo">' +
             '<div class="panel-head">' +
               '<h2>Qazo panel</h2>' +
               '<div class="summary"><strong>Jami qazo: ' + state.qazo.total + '</strong><span>Raqamlarni o\\'zgartirib saqlash mumkin.</span></div>' +
@@ -2324,6 +2567,38 @@ function miniAppHtml() {
             '<div class="actions">' +
               '<button data-action="qazo-save" class="primary">Saqlash</button>' +
               '<button data-action="refresh">Yangilash</button>' +
+            '</div>' +
+          '</section>';
+      }
+
+      function renderTasbeh() {
+        var tasbeh = state.tasbeh;
+        var percent = tasbeh.target ? Math.round((tasbeh.current / tasbeh.target) * 100) : 0;
+        var zikr = tasbeh.zikr || {};
+        app.innerHTML =
+          '<section class="panel with-bg theme-tasbeh">' +
+            '<div class="panel-head">' +
+              '<div class="tasbeh-head">' +
+                '<div>' +
+                  '<h2>' + escapeText(zikr.text || "Tasbeh") + '</h2>' +
+                  '<div class="summary"><span>' + escapeText(zikr.note || "") + '</span><span>' + (tasbeh.zikrIndex + 1) + ' / ' + tasbeh.zikrs.length + ' zikr</span></div>' +
+                '</div>' +
+                '<div class="tasbeh-total"><strong>' + Number(tasbeh.total || 0) + '</strong><span>jami</span></div>' +
+              '</div>' +
+              '<div class="progress"><span style="width:' + percent + '%"></span></div>' +
+            '</div>' +
+            '<div class="segmented">' +
+              '<button data-action="tasbeh-target" data-target="33" class="' + (tasbeh.target === 33 ? "active" : "") + '">33 talik</button>' +
+              '<button data-action="tasbeh-target" data-target="99" class="' + (tasbeh.target === 99 ? "active" : "") + '">99 talik</button>' +
+            '</div>' +
+            '<div class="tasbeh-counter">' +
+              '<button class="tasbeh-button" data-action="tasbeh-count" aria-label="Tasbeh sanash">' +
+                '<span class="tasbeh-count"><strong>' + Number(tasbeh.current || 0) + '</strong><span>' + escapeText(tasbeh.progress) + '</span></span>' +
+              '</button>' +
+            '</div>' +
+            '<div class="actions">' +
+              '<button data-action="tasbeh-next">Keyingi zikr</button>' +
+              '<button data-action="tasbeh-reset">Joriy reset</button>' +
             '</div>' +
           '</section>';
       }
@@ -2365,6 +2640,17 @@ function miniAppHtml() {
             counts[input.getAttribute("data-qazo-input")] = Math.max(0, Number(input.value || 0));
           });
           mutate("/api/qazo-bulk", { counts: counts }, "Qazo sonlari saqlandi.");
+        } else if (action === "tasbeh-count") {
+          mutate("/api/tasbeh", { action: "increment" }, "Tasbeh saqlandi.");
+        } else if (action === "tasbeh-target") {
+          mutate("/api/tasbeh", {
+            action: "set_target",
+            target: Number(target.getAttribute("data-target"))
+          }, "Tasbeh turi tanlandi.");
+        } else if (action === "tasbeh-next") {
+          mutate("/api/tasbeh", { action: "next" }, "Keyingi zikr.");
+        } else if (action === "tasbeh-reset") {
+          mutate("/api/tasbeh", { action: "reset_current" }, "Joriy zikr tozalandi.");
         } else if (action === "prayer-done" || action === "prayer-qazo") {
           mutate("/api/prayer-done", {
             date: state.prayer.date,
