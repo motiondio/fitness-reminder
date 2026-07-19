@@ -196,11 +196,18 @@ function prayerReminderIntervalMinutes(env) {
 }
 
 function prayerSource(env) {
-  return String(env.PRAYER_SOURCE || "islomapi").toLowerCase().trim();
+  return String(env.PRAYER_SOURCE || "namozvaqti").toLowerCase().trim();
 }
 
 function prayerRegion(env) {
-  return env.PRAYER_REGION || env.PRAYER_CITY || "Toshkent";
+  return env.PRAYER_REGION || env.PRAYER_CITY || "toshkent-shahri";
+}
+
+function namozVaqtiRegion(env) {
+  return String(env.PRAYER_REGION_SLUG || prayerRegion(env) || "toshkent-shahri")
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, "-");
 }
 
 function buildWorkoutMessage(targetDate, env) {
@@ -425,6 +432,7 @@ function statusMessage(env, chatId) {
     `PRAYER_TOPIC_ID: <code>${escapeHtml(env.PRAYER_TOPIC_ID || "yo'q")}</code>`,
     `PRAYER_SOURCE: <code>${escapeHtml(prayerSource(env))}</code>`,
     `PRAYER_REGION: <code>${escapeHtml(prayerRegion(env))}</code>`,
+    `PRAYER_REGION_SLUG: <code>${escapeHtml(namozVaqtiRegion(env))}</code>`,
     `PRAYER_CITY: <code>${escapeHtml(env.PRAYER_CITY || "Tashkent")}</code>`,
     `PRAYER_COUNTRY: <code>${escapeHtml(env.PRAYER_COUNTRY || "Uzbekistan")}</code>`,
     `PRAYER_REMINDER_INTERVAL_MINUTES: <code>${escapeHtml(prayerReminderIntervalMinutes(env))}</code>`,
@@ -555,6 +563,18 @@ function monthDayFromDateKey(dateKey) {
   return { month, day };
 }
 
+function yearMonthFromDateKey(dateKey) {
+  return dateKey.slice(0, 7);
+}
+
+function dateKeyFromDottedDate(value) {
+  const match = String(value || "").match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+  if (!match) {
+    return null;
+  }
+  return `${match[3]}-${match[2]}-${match[1]}`;
+}
+
 function addDaysToDateKey(dateKey, offsetDays) {
   const date = parseDate(dateKey);
   date.setDate(date.getDate() + offsetDays);
@@ -660,6 +680,66 @@ function scheduleFromIslomApi(dateKey, region, data) {
   };
 }
 
+function scheduleFromNamozVaqtiApi(dateKey, region, data) {
+  const tableRow = Array.isArray(data.period_table)
+    ? data.period_table.find((row) => dateKeyFromDottedDate(row.date) === dateKey)
+    : null;
+  const rawTimes = tableRow?.times || (data.meta?.date === dateKey ? data.today?.times : null);
+
+  if (!rawTimes) {
+    throw new Error(`Namoz-vaqti API response does not contain ${dateKey}`);
+  }
+
+  const mappedTimes = {
+    fajr: rawTimes.bomdod,
+    dhuhr: rawTimes.peshin,
+    asr: rawTimes.asr,
+    maghrib: rawTimes.shom,
+    isha: rawTimes.xufton,
+  };
+
+  const timings = PRAYERS.map((prayer) => ({
+    ...prayer,
+    time: mappedTimes[prayer.key],
+    minute: prayerTimeMinutes(mappedTimes[prayer.key]),
+  })).filter((prayer) => prayer.minute !== null);
+
+  if (timings.length !== PRAYERS.length) {
+    throw new Error("Namoz-vaqti API response missing prayer times");
+  }
+
+  return {
+    dateKey,
+    city: data.meta?.region?.name || region,
+    country: "Uzbekistan",
+    source: "namozvaqti",
+    sunrise: rawTimes.quyosh
+      ? { time: rawTimes.quyosh, minute: prayerTimeMinutes(rawTimes.quyosh) }
+      : null,
+    timings,
+  };
+}
+
+async function fetchNamozVaqtiPrayerSchedule(env, dateKey) {
+  const region = namozVaqtiRegion(env);
+  const url = new URL("https://namoz-vaqti.uz/index.php");
+  url.searchParams.set("format", "json");
+  url.searchParams.set("lang", env.PRAYER_LANG || "lotin");
+  url.searchParams.set("period", yearMonthFromDateKey(dateKey));
+  url.searchParams.set("region", region);
+
+  const response = await fetch(url.toString(), {
+    headers: { "accept": "application/json", "user-agent": "fitness-reminder-worker/1.0" },
+  });
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Namoz-vaqti API failed: ${response.status} ${errorText.slice(0, 120)}`);
+  }
+
+  const data = await response.json();
+  return scheduleFromNamozVaqtiApi(dateKey, region, data);
+}
+
 async function fetchIslomPrayerSchedule(env, dateKey) {
   const region = prayerRegion(env);
   const { month, day } = monthDayFromDateKey(dateKey);
@@ -723,9 +803,12 @@ async function fetchPrayerSchedule(env, dateKey) {
   if (prayerSource(env) === "aladhan") {
     return fetchAladhanPrayerSchedule(env, dateKey);
   }
+  if (prayerSource(env) === "islomapi") {
+    return fetchIslomPrayerSchedule(env, dateKey);
+  }
 
   try {
-    return await fetchIslomPrayerSchedule(env, dateKey);
+    return await fetchNamozVaqtiPrayerSchedule(env, dateKey);
   } catch (error) {
     if (env.PRAYER_DISABLE_FALLBACK === "1") {
       throw error;

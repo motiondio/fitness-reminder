@@ -9,8 +9,8 @@
   },
   "vars": {
     "FITNESS_START_DATE": "2026-07-19",
-    "PRAYER_SOURCE": "islomapi",
-    "PRAYER_REGION": "Toshkent",
+    "PRAYER_SOURCE": "namozvaqti",
+    "PRAYER_REGION": "toshkent-shahri",
     "PRAYER_REMINDER_INTERVAL_MINUTES": "10"
   },
   "secrets": {

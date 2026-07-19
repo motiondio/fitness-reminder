@@ -14,6 +14,7 @@ Bu Worker Telegram botga yozilganda darhol javob berish uchun kerak.
 - `PRAYER_TOPIC_ID`
 - `PRAYER_SOURCE`
 - `PRAYER_REGION`
+- `PRAYER_REGION_SLUG`
 - `PRAYER_CITY`
 - `PRAYER_COUNTRY`
 - `PRAYER_METHOD`
@@ -29,14 +30,16 @@ Namoz uchun tavsiya qilingan qiymatlar:
 ```text
 PRAYER_CHAT_ID=-1002781399618
 PRAYER_TOPIC_ID=namoz_topic_thread_id
-PRAYER_SOURCE=islomapi
-PRAYER_REGION=Toshkent
+PRAYER_SOURCE=namozvaqti
+PRAYER_REGION=toshkent-shahri
 PRAYER_REMINDER_INTERVAL_MINUTES=10
 ```
 
 `PRAYER_TOPIC_ID` alohida namoz topici uchun ishlaydi. Agar qo'shilmasa, bot `TELEGRAM_TOPIC_ID` ga yozadi.
 
-`PRAYER_CITY`, `PRAYER_COUNTRY`, `PRAYER_METHOD`, `PRAYER_SCHOOL` faqat fallback manba AlAdhan uchun kerak. IslomAPI ishlamasa, bot avtomatik fallback qiladi.
+`PRAYER_REGION` uchun `namoz-vaqti.uz` region slug ishlatiladi. Toshkent shahri uchun qiymat: `toshkent-shahri`.
+
+`PRAYER_CITY`, `PRAYER_COUNTRY`, `PRAYER_METHOD`, `PRAYER_SCHOOL` faqat fallback manba AlAdhan uchun kerak. `namoz-vaqti.uz` ishlamasa, bot avtomatik fallback qiladi.
 
 ## Deploy
 
@@ -207,15 +210,15 @@ Qabul qilinadigan nomlar:
 bomdod, peshin, asr, shom, xufton, vitr
 ```
 
-Namoz vaqtlari asosiy manba sifatida `https://islomapi.uz/api/daily` orqali olinadi. Bu zero8d/namozvatqiapi reposida ko'rsatilgan endpoint va ma'lumotlar islom.uz asosida.
+Namoz vaqtlari asosiy manba sifatida `https://namoz-vaqti.uz/index.php` API orqali olinadi.
 
 Ishlatiladigan endpoint:
 
 ```text
-https://islomapi.uz/api/daily?region=Toshkent&month=7&day=19
+https://namoz-vaqti.uz/index.php?format=json&lang=lotin&period=2026-07&region=toshkent-shahri
 ```
 
-API vaqtincha ishlamasa, bot AlAdhan fallback manbaga o'tadi. Fallbackni o'chirish kerak bo'lsa:
+Bot aniq oy JSON’ini oladi va kerakli sanani `period_table` ichidan topadi. API vaqtincha ishlamasa, bot AlAdhan fallback manbaga o'tadi. Fallbackni o'chirish kerak bo'lsa:
 
 ```text
 PRAYER_DISABLE_FALLBACK=1
