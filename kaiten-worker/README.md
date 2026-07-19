@@ -123,6 +123,7 @@ curl -X POST "https://api.telegram.org/bot$BOT_TOKEN/setChatMenuButton" \
 - Card boxlar ichidagi title va mijoz pilllari sig'ishi uchun kontent bo'yicha balandlashadi
 - Card drag paytida board horizontal scroll vaqtincha bloklanadi
 - Yangi mijoz qo'shishda mavjud mijoz inputi majburiy bo'lmaydi va title ism/familiyadan yig'iladi
+- Cardlar Telegram iOS WebView'da balandlik buzilmasligi uchun button emas, clickable article sifatida render qilinadi
 - Kaiten comment qo'shish
 - Owner/admin uchun whitelist panel
 

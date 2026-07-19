@@ -10,7 +10,7 @@ const CONFIG = {
   clientEndRow: 1000,
 };
 
-const APP_VERSION = "kaiten-miniapp-2026-07-19-08";
+const APP_VERSION = "kaiten-miniapp-2026-07-19-09";
 
 const ICON_PRESETS = [
   { value: "⭐️", label: "Syomka" },
@@ -1005,7 +1005,9 @@ function appHtml() {
       -webkit-overflow-scrolling: touch;
     }
     .card {
-      display: block;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
       width: 100%;
       max-width: 100%;
       height: auto;
@@ -1014,11 +1016,13 @@ function appHtml() {
       border-radius: var(--radius);
       padding: .8em;
       text-align: left;
-      min-height: 0;
+      min-height: 5.6em;
       line-height: 1.35;
-      overflow: visible;
+      overflow: hidden;
       box-shadow: 0 10px 24px rgba(0,0,0,.18);
       touch-action: manipulation;
+      cursor: pointer;
+      user-select: none;
       transition: border-color .16s ease, box-shadow .16s ease, transform .16s ease, opacity .16s ease;
     }
     .card.pressed {
@@ -1044,7 +1048,8 @@ function appHtml() {
       white-space: pre-wrap;
       overflow-wrap: anywhere;
       word-break: break-word;
-      font-size: 1.133em;
+      font-size: 1.06em;
+      font-weight: 500;
     }
     .card-footer {
       display: flex;
@@ -1600,11 +1605,11 @@ function appHtml() {
 
       function renderCard(card) {
         var client = guessClient(card.title);
-        return '<button class="card" data-card-id="' + card.id + '">' +
+        return '<article class="card" role="button" tabindex="0" data-card-id="' + card.id + '">' +
           '<div class="card-title">' + escapeText(card.title) + '</div>' +
           (client ? '<span class="client-pill">' + escapeText(client) + '</span>' : '') +
           '<div class="card-footer"><span>#' + card.id + '</span><span>💬 ' + Number(card.commentsTotal || 0) + '</span></div>' +
-        '</button>';
+        '</article>';
       }
 
       function findCardById(cardId) {

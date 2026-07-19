@@ -51,6 +51,7 @@ Oxirgi takomillashtirishlar:
 - Card boxlar title va mijoz pilllariga mos balandlashadigan qilindi.
 - Card drag paytida board horizontal scroll vaqtincha bloklanadigan qilindi.
 - Yangi mijoz qo'shishda mavjud mijoz inputi majburiy bo'lmaydigan va card title ism/familiyadan yig'iladigan qilindi.
+- Cardlar Telegram iOS WebView'da balandlik buzilmasligi uchun button emas, clickable article sifatida render qilinadigan qilindi.
 
 ## Platforma
 
