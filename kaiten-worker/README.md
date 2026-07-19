@@ -83,6 +83,14 @@ Mini App menu URL doim `/app` bilan tugashi kerak. Worker root `/` ham Mini Appn
 
 Botga `/start`, `/app` yoki `/menu` yuborilganda Worker Telegram menu buttonni avtomatik `/app` URLga yangilaydi.
 
+Deploy versiyasini tekshirish:
+
+```bash
+curl "$WORKER_URL/health"
+```
+
+Javobda `version` qiymati ko'rinishi kerak.
+
 Mini App menu:
 
 ```bash

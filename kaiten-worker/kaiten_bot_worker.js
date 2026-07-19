@@ -10,6 +10,8 @@ const CONFIG = {
   clientEndRow: 1000,
 };
 
+const APP_VERSION = "kaiten-miniapp-2026-07-19-04";
+
 const ICON_PRESETS = [
   { value: "⭐️", label: "Syomka" },
   { value: "✂️", label: "Montaj" },
@@ -437,7 +439,24 @@ async function getGoogleServiceAccount(env) {
   if (!env.GOOGLE_SERVICE_ACCOUNT_JSON) {
     throw new Error("GOOGLE_SERVICE_ACCOUNT_JSON sozlanmagan.");
   }
-  return JSON.parse(env.GOOGLE_SERVICE_ACCOUNT_JSON);
+  let account = null;
+  if (typeof env.GOOGLE_SERVICE_ACCOUNT_JSON === "object") {
+    account = env.GOOGLE_SERVICE_ACCOUNT_JSON;
+  } else {
+    const raw = String(env.GOOGLE_SERVICE_ACCOUNT_JSON || "").trim();
+    try {
+      account = JSON.parse(raw);
+      if (typeof account === "string") {
+        account = JSON.parse(account);
+      }
+    } catch (error) {
+      throw new Error("GOOGLE_SERVICE_ACCOUNT_JSON to'g'ri JSON emas. Secret value qismiga service account .json faylining to'liq matnini kiriting.");
+    }
+  }
+  if (!account?.client_email || !account?.private_key) {
+    throw new Error("GOOGLE_SERVICE_ACCOUNT_JSON ichida client_email yoki private_key topilmadi.");
+  }
+  return account;
 }
 
 async function getGoogleAccessToken(env) {
@@ -1589,8 +1608,20 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
-    if (request.method === "GET" && (url.pathname === "/" || url.pathname === "/app")) {
+    if (request.method === "GET" && ["/", "/app", "/index.html"].includes(url.pathname)) {
       return appHtml();
+    }
+
+    if (request.method === "GET" && url.pathname === "/health") {
+      return jsonResponse({
+        ok: true,
+        version: APP_VERSION,
+        appRoutes: ["/", "/app", "/index.html"],
+        hasKv: Boolean(env.KAITEN_STATE),
+        hasTelegramToken: Boolean(env.TELEGRAM_BOT_TOKEN),
+        hasKaitenToken: Boolean(env.KAITEN_API_TOKEN),
+        hasGoogleServiceAccount: Boolean(env.GOOGLE_SERVICE_ACCOUNT_JSON),
+      });
     }
 
     if (url.pathname.startsWith("/api/")) {

@@ -37,11 +37,13 @@ Keyingi amaliy qadamlar:
 Oxirgi takomillashtirishlar:
 
 - Telegram `/start`, `/app`, `/menu` komandalarida menu button avtomatik `/app` URLga yangilanadi.
+- `/health` endpoint deploy versiyasini va binding/secret bor-yo'qligini ko'rsatadi.
 - Mavjud Kaiten card title ichidan icon, sana, vaqt va mijoz nomi ajratib olinadi.
 - Edit rejimida parsing ishlamasa ham column move date/time bo'shligi sabab bloklanmaydi.
 - Mijozlar bazasi `MIJOZLAR BAZASI!A6:X1000` dan olinadi.
 - Mijozlar ro'yxati Cloudflare KV cachega saqlanadi va har 30 daqiqada cron bilan yangilanadi.
 - Mini App ichida `Mijozlar bazasini yangilash` tugmasi bor.
+- `GOOGLE_SERVICE_ACCOUNT_JSON` Cloudflare tarafida JSON object bo'lib kelsa ham qabul qilinadi.
 
 ## Platforma
 
