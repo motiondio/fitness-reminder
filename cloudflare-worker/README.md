@@ -135,6 +135,33 @@ curl -X POST "https://api.telegram.org/botBOT_TOKEN/setChatMenuButton" \
   }'
 ```
 
+Agar xabar yoziladigan joyda `Mini App` o'rniga uch chiziqli command menu chiqaversa, menu buttonni aniq private chat ID uchun qo'ying:
+
+```bash
+curl -X POST "https://api.telegram.org/botBOT_TOKEN/setChatMenuButton" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "chat_id": 8084782034,
+    "menu_button": {
+      "type": "web_app",
+      "text": "Mini App",
+      "web_app": {
+        "url": "https://fitness-reminder.shahzod-rmusic.workers.dev/app"
+      }
+    }
+  }'
+```
+
+Tekshirish:
+
+```bash
+curl -X POST "https://api.telegram.org/botBOT_TOKEN/getChatMenuButton" \
+  -H "Content-Type: application/json" \
+  -d '{"chat_id": 8084782034}'
+```
+
+Javobda `"type":"web_app"` chiqishi kerak. Agar `"type":"commands"` yoki `"type":"default"` chiqsa, Telegram hali pastki menu buttonni Mini Appga almashtirmagan.
+
 ## Bot buyruqlari
 
 - `/app`
