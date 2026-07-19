@@ -194,7 +194,7 @@ https://fitness-reminder.shahzod-rmusic.workers.dev/app
 
 Mini App bo'limlari:
 
-- Fitness: bugungi checklistni bosib belgilash, `Hammasi`, `Reset`
+- Fitness: kunlar bo'yicha checklist, chap/o'ng swipe yoki `‹` / `›` tugmalari bilan sana almashtirish, `Hammasi`, `Reset`
 - Namoz: bugungi namoz vaqtlari, `O'qidim`, `Qazo`
 - Qazo: Bomdod, Peshin, Asr, Shom, Xufton, Vitr sonlarini `+`, `-` yoki qo'lda raqam kiritib saqlash
 
@@ -223,6 +223,7 @@ State qayerga yoziladi:
 - `MINI_APP_CHAT_ID` bo'lmasa, qazo va namoz state `PRAYER_CHAT_ID` yoki `TELEGRAM_CHAT_ID` bo'yicha ishlaydi.
 - `MINI_APP_FITNESS_CHAT_ID` bo'lmasa, fitness checklist ham shu chat ID bo'yicha ishlaydi.
 - Hammasi `CHECKLIST_STATE` KV binding ichida saqlanadi.
+- Fitness checklist har sana uchun alohida saqlanadi. Masalan, 1-kunda belgilangan bandlar 2-kunga o'tib ketmaydi.
 
 ## Namoz eslatmalari
 

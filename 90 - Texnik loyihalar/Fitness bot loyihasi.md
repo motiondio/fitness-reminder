@@ -39,6 +39,7 @@ Bog'liq notelar:
 - Xufton muddati: keyingi Bomdodgacha; o'tib ketsa Xufton + Vitr qazo bo'ladi
 - Telegram Mini App: `/app`, `GET /api/app-state`, `POST /api/checklist-toggle`, `POST /api/prayer-done`, `POST /api/qazo-adjust`, `POST /api/qazo-bulk`
 - Mini App bo'limlari: Fitness, Namoz, Qazo
+- Fitness Mini App: chap/o'ng swipe va `‹` / `›` tugmalari bilan kunlar orasida o'tish
 - Mini App xavfsizligi: Telegram `initData` tekshiruvi, `MINI_APP_ALLOWED_USER_IDS`
 
 ## Keyingi bosqichlar

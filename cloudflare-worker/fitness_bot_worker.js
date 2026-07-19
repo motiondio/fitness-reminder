@@ -163,6 +163,13 @@ function dateFromCallback(value) {
   return /^\d{4}-\d{2}-\d{2}$/.test(value) ? parseDate(value) : tashkentDate(0);
 }
 
+function dateFromMiniApp(value) {
+  if (value instanceof Date) {
+    return value;
+  }
+  return /^\d{4}-\d{2}-\d{2}$/.test(String(value || "")) ? parseDate(value) : tashkentDate(0);
+}
+
 function escapeHtml(value) {
   return String(value)
     .replace(/&/g, "&amp;")
@@ -1487,9 +1494,9 @@ function miniAppUrl(env, requestUrl = null) {
   return null;
 }
 
-async function buildMiniAppState(env) {
+async function buildMiniAppState(env, options = {}) {
   const nowParts = tashkentNowParts();
-  const targetDate = parseDate(nowParts.dateKey);
+  const targetDate = dateFromMiniApp(options.fitnessDate || nowParts.dateKey);
   const chatId = miniAppChatId(env);
   const fitnessChatId = miniAppFitnessChatId(env);
   const plan = workoutPlanFor(targetDate, env);
@@ -1567,18 +1574,20 @@ async function handleMiniAppApi(request, env) {
   const chatId = miniAppChatId(env);
   const fitnessChatId = miniAppFitnessChatId(env);
   const threadId = prayerThreadId(env);
+  let requestedFitnessDate = url.searchParams.get("fitness_date");
   if (!chatId || !fitnessChatId) {
     return jsonResponse({ ok: false, error: "MINI_APP_CHAT_ID yoki TELEGRAM_CHAT_ID sozlanmagan." }, 500);
   }
 
   if (request.method === "GET" && url.pathname === "/api/app-state") {
-    return jsonResponse({ ok: true, state: await buildMiniAppState(env) });
+    return jsonResponse({ ok: true, state: await buildMiniAppState(env, { fitnessDate: requestedFitnessDate }) });
   }
   if (request.method !== "POST") {
     return jsonResponse({ ok: false, error: "Method not allowed" }, 405);
   }
 
   const body = await readJsonBody(request);
+  requestedFitnessDate = body.fitness_date || body.date || requestedFitnessDate;
 
   if (url.pathname === "/api/checklist-toggle") {
     const targetDate = body.date ? dateFromCallback(body.date) : tashkentDate(0);
@@ -1602,7 +1611,7 @@ async function handleMiniAppApi(request, env) {
     }
 
     await setChecklistMask(env, fitnessChatId, targetDate, nextMask);
-    return jsonResponse({ ok: true, state: await buildMiniAppState(env) });
+    return jsonResponse({ ok: true, state: await buildMiniAppState(env, { fitnessDate: targetDate }) });
   }
 
   if (url.pathname === "/api/qazo-adjust") {
@@ -1613,7 +1622,7 @@ async function handleMiniAppApi(request, env) {
     }
     await adjustQazoCount(env, chatId, prayer.key, Math.trunc(delta));
     await upsertQazoDashboard(env, chatId, threadId, "Mini App orqali yangilandi.");
-    return jsonResponse({ ok: true, state: await buildMiniAppState(env) });
+    return jsonResponse({ ok: true, state: await buildMiniAppState(env, { fitnessDate: requestedFitnessDate }) });
   }
 
   if (url.pathname === "/api/qazo-bulk") {
@@ -1626,7 +1635,7 @@ async function handleMiniAppApi(request, env) {
       }
     }
     await upsertQazoDashboard(env, chatId, threadId, "Mini App orqali qazo sonlari kiritildi.");
-    return jsonResponse({ ok: true, state: await buildMiniAppState(env) });
+    return jsonResponse({ ok: true, state: await buildMiniAppState(env, { fitnessDate: requestedFitnessDate }) });
   }
 
   if (url.pathname === "/api/prayer-done") {
@@ -1649,7 +1658,7 @@ async function handleMiniAppApi(request, env) {
       await markPrayerDone(env, chatId, dateKey, prayer.key, "done");
     }
     await upsertQazoDashboard(env, chatId, threadId, "Mini App orqali namoz holati yangilandi.");
-    return jsonResponse({ ok: true, state: await buildMiniAppState(env) });
+    return jsonResponse({ ok: true, state: await buildMiniAppState(env, { fitnessDate: requestedFitnessDate }) });
   }
 
   return jsonResponse({ ok: false, error: "Endpoint topilmadi." }, 404);
@@ -1776,6 +1785,35 @@ function miniAppHtml() {
       margin: 0;
       font-size: 18px;
       line-height: 1.2;
+    }
+    .day-nav {
+      display: grid;
+      grid-template-columns: 44px 1fr 44px;
+      gap: 8px;
+      align-items: center;
+    }
+    .day-nav button {
+      min-height: 42px;
+      padding: 0;
+      font-size: 24px;
+      line-height: 1;
+    }
+    .date-pill {
+      display: grid;
+      gap: 3px;
+      min-width: 0;
+      text-align: center;
+    }
+    .date-pill strong,
+    .date-pill span {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .date-pill span {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 550;
     }
     .summary {
       display: grid;
@@ -1938,7 +1976,10 @@ function miniAppHtml() {
 
       var state = null;
       var activeTab = "fitness";
+      var selectedFitnessDate = null;
       var busy = false;
+      var touchStartX = 0;
+      var touchStartY = 0;
       var app = document.getElementById("app");
       var statusEl = document.getElementById("status");
       var metaEl = document.getElementById("meta");
@@ -1956,16 +1997,32 @@ function miniAppHtml() {
         statusEl.className = isError ? "status error" : "status";
       }
 
+      function addDays(dateText, delta) {
+        var parts = String(dateText).split("-").map(Number);
+        var date = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2] + delta));
+        return date.toISOString().slice(0, 10);
+      }
+
+      function appStatePath() {
+        return selectedFitnessDate
+          ? "/api/app-state?fitness_date=" + encodeURIComponent(selectedFitnessDate)
+          : "/api/app-state";
+      }
+
       async function api(path, body) {
+        var payload = body;
+        if (payload && typeof payload === "object" && !Array.isArray(payload) && !payload.fitness_date) {
+          payload = Object.assign({ fitness_date: selectedFitnessDate || (state && state.fitness && state.fitness.date) }, payload);
+        }
         var options = {
-          method: body === undefined ? "GET" : "POST",
+          method: payload === undefined ? "GET" : "POST",
           headers: {
             "content-type": "application/json",
             "x-telegram-init-data": tg ? tg.initData : ""
           }
         };
-        if (body !== undefined) {
-          options.body = JSON.stringify(body);
+        if (payload !== undefined) {
+          options.body = JSON.stringify(payload);
         }
         var response = await fetch(path, options);
         var data = await response.json().catch(function () {
@@ -1982,8 +2039,9 @@ function miniAppHtml() {
         busy = true;
         setStatus("Yangilanmoqda...");
         try {
-          var data = await api("/api/app-state");
+          var data = await api(appStatePath());
           state = data.state;
+          selectedFitnessDate = state.fitness.date;
           render();
           setStatus("Yangilandi: " + state.now.time);
         } catch (error) {
@@ -2000,6 +2058,7 @@ function miniAppHtml() {
         try {
           var data = await api(path, body);
           state = data.state;
+          selectedFitnessDate = state.fitness.date;
           render();
           setStatus(message || "Saqlandi.");
           if (tg && tg.HapticFeedback) {
@@ -2021,6 +2080,12 @@ function miniAppHtml() {
           button.classList.toggle("active", button.getAttribute("data-tab") === tab);
         });
         render();
+      }
+
+      function changeFitnessDate(delta) {
+        if (!state || activeTab !== "fitness" || busy) return;
+        selectedFitnessDate = addDays(state.fitness.date, delta);
+        refresh();
       }
 
       function render() {
@@ -2047,7 +2112,11 @@ function miniAppHtml() {
         app.innerHTML =
           '<section class="panel">' +
             '<div class="panel-head">' +
-              '<h2>' + escapeText(fitness.title) + '</h2>' +
+              '<div class="day-nav">' +
+                '<button data-action="fitness-prev" aria-label="Oldingi kun">&lsaquo;</button>' +
+                '<div class="date-pill"><strong>' + escapeText(fitness.title) + '</strong><span>' + escapeText(fitness.date) + '</span></div>' +
+                '<button data-action="fitness-next" aria-label="Keyingi kun">&rsaquo;</button>' +
+              '</div>' +
               '<div class="summary">' +
                 '<span>' + escapeText(fitness.workout) + '</span>' +
                 '<span>Treadmill: ' + escapeText(fitness.treadmill) + '</span>' +
@@ -2136,6 +2205,10 @@ function miniAppHtml() {
 
         if (action === "refresh") {
           refresh();
+        } else if (action === "fitness-prev") {
+          changeFitnessDate(-1);
+        } else if (action === "fitness-next") {
+          changeFitnessDate(1);
         } else if (action === "checklist-toggle") {
           mutate("/api/checklist-toggle", {
             date: state.fitness.date,
@@ -2164,6 +2237,20 @@ function miniAppHtml() {
           }, "Namoz holati yangilandi.");
         }
       });
+
+      document.addEventListener("touchstart", function (event) {
+        if (activeTab !== "fitness" || !event.touches || event.touches.length !== 1) return;
+        touchStartX = event.touches[0].clientX;
+        touchStartY = event.touches[0].clientY;
+      }, { passive: true });
+
+      document.addEventListener("touchend", function (event) {
+        if (activeTab !== "fitness" || !event.changedTouches || event.changedTouches.length !== 1) return;
+        var dx = event.changedTouches[0].clientX - touchStartX;
+        var dy = event.changedTouches[0].clientY - touchStartY;
+        if (Math.abs(dx) < 55 || Math.abs(dx) < Math.abs(dy) * 1.25) return;
+        changeFitnessDate(dx < 0 ? 1 : -1);
+      }, { passive: true });
 
       refresh();
     }());
