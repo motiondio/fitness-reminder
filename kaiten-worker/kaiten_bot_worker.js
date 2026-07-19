@@ -48,6 +48,8 @@ const UZ_MONTHS = [
   "Dekabr",
 ];
 
+const CLIENT_CACHE_TTL_SECONDS = 60 * 60 * 24 * 7;
+
 let googleTokenCache = null;
 
 function jsonResponse(data, status = 200) {
@@ -527,8 +529,11 @@ async function getClients(env, force = false) {
   const cacheKey = "clients:cache";
   if (!force) {
     const cached = await kvGetJson(env, cacheKey);
-    if (cached) {
+    if (Array.isArray(cached)) {
       return cached;
+    }
+    if (Array.isArray(cached?.items)) {
+      return cached.items;
     }
   }
   const range = encodeURIComponent(`${sheetName(env)}!A${CONFIG.clientStartRow}:X${CONFIG.clientEndRow}`);
@@ -536,7 +541,8 @@ async function getClients(env, force = false) {
   const clients = (data.values || [])
     .map(normalizeClient)
     .filter((client) => client.name);
-  await kvPutJson(env, cacheKey, clients, 60 * 10);
+  await kvPutJson(env, cacheKey, clients, CLIENT_CACHE_TTL_SECONDS);
+  await kvPutJson(env, "clients:cache:updatedAt", new Date().toISOString(), CLIENT_CACHE_TTL_SECONDS);
   return clients;
 }
 
@@ -601,6 +607,25 @@ async function sendTelegram(env, chatId, text, replyMarkup = null) {
   return response.ok ? response.json() : null;
 }
 
+async function setTelegramMenuButton(env, requestUrl) {
+  const url = appUrl(env, requestUrl);
+  if (!env.TELEGRAM_BOT_TOKEN || !url) {
+    return null;
+  }
+  const response = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/setChatMenuButton`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      menu_button: {
+        type: "web_app",
+        text: "ISOMEDIA",
+        web_app: { url },
+      },
+    }),
+  });
+  return response.ok ? response.json() : null;
+}
+
 function appUrl(env, requestUrl = null) {
   if (env.MINI_APP_URL) {
     return env.MINI_APP_URL;
@@ -616,9 +641,10 @@ function startKeyboard(env, requestUrl) {
 }
 
 async function buildState(env, user) {
-  const [cards, clients, users] = await Promise.all([
+  const [cards, clients, clientsUpdatedAt, users] = await Promise.all([
     getKaitenCards(env),
     getClients(env).catch((error) => ({ error: error.message, items: [] })),
+    kvGetJson(env, "clients:cache:updatedAt"),
     assertRole(user, "admin") ? listUsers(env) : Promise.resolve([]),
   ]);
   return {
@@ -631,6 +657,7 @@ async function buildState(env, user) {
     cards: Array.isArray(cards) ? cards : [],
     clients: Array.isArray(clients) ? clients : [],
     clientsError: clients?.error || null,
+    clientsUpdatedAt,
     users,
   };
 }
@@ -867,6 +894,9 @@ function appHtml() {
       flex-wrap: wrap;
       gap: 8px;
       justify-content: flex-end;
+    }
+    .toolbar button {
+      white-space: nowrap;
     }
     .board {
       flex: 1 1 auto;
@@ -1117,6 +1147,9 @@ function appHtml() {
           </div>
         </div>
         <div class="field full">
+          <button type="button" id="refreshClientsBtn">Mijozlar bazasini yangilash</button>
+        </div>
+        <div class="field full">
           <button type="button" id="toggleNewClient">Yangi mijoz ma'lumotlari</button>
         </div>
         <div id="newClientFields" class="field full hidden">
@@ -1173,6 +1206,11 @@ function appHtml() {
       var modalEl = document.getElementById("modal");
       var adminPanel = document.getElementById("adminPanel");
       var clientSuggestions = document.getElementById("clientSuggestions");
+      var months = ["Yanvar","Fevral","Mart","Aprel","May","Iyun","Iyul","Avgust","Sentabr","Oktabr","Noyabr","Dekabr"];
+      var monthMap = months.reduce(function (acc, month, index) {
+        acc[month.toLowerCase()] = index + 1;
+        return acc;
+      }, {});
 
       function escapeText(value) {
         return String(value == null ? "" : value)
@@ -1195,10 +1233,35 @@ function appHtml() {
       }
 
       function monthTitle(dateValue) {
-        var months = ["Yanvar","Fevral","Mart","Aprel","May","Iyun","Iyul","Avgust","Sentabr","Oktabr","Noyabr","Dekabr"];
         var parts = String(dateValue || "").split("-").map(Number);
         if (!parts[0] || !parts[1] || !parts[2]) return "";
         return parts[2] + "-" + months[parts[1] - 1];
+      }
+
+      function pad2(value) {
+        return String(value).padStart(2, "0");
+      }
+
+      function parseCardTitle(title) {
+        var clean = String(title || "").trim().replace(/\s+/g, " ");
+        var match = clean.match(/^([^0-9]*?)(\\d{1,2})-([A-Za-z'’]+)\\s+(\\d{1,2}:\\d{2}(?:\\s*-\\s*\\d{1,2}:\\d{2})?)\\s+(.+)$/u);
+        if (!match) {
+          return {
+            icon: "",
+            date: "",
+            time: "",
+            clientName: guessClient(clean),
+          };
+        }
+        var month = monthMap[String(match[3] || "").toLowerCase().replace(/['’]/g, "")];
+        var day = Number(match[2]);
+        var year = new Date().getFullYear();
+        return {
+          icon: String(match[1] || "").trim(),
+          date: month ? year + "-" + pad2(month) + "-" + pad2(day) : "",
+          time: String(match[4] || "").replace(/\\s*-\\s*/g, "-"),
+          clientName: String(match[5] || "").trim(),
+        };
       }
 
       function buildTitle() {
@@ -1232,7 +1295,11 @@ function appHtml() {
           var data = await api("/api/state");
           state = data.state;
           render();
-          setStatus("Yangilandi.");
+          if (state.clientsError) {
+            setStatus("Mijozlar bazasi o'qilmadi: " + state.clientsError, true);
+          } else {
+            setStatus("Yangilandi.");
+          }
         } catch (error) {
           setStatus(error.message, true);
         }
@@ -1252,7 +1319,10 @@ function appHtml() {
       }
 
       function render() {
-        metaEl.textContent = state.user.name + " / " + state.user.role;
+        var clientMeta = state.clientsError
+          ? " · mijoz bazasi xato"
+          : " · " + (state.clients || []).length + " mijoz";
+        metaEl.textContent = state.user.name + " / " + state.user.role + clientMeta;
         document.getElementById("adminBtn").classList.toggle("hidden", !["owner", "admin"].includes(state.user.role));
         document.getElementById("columnInput").innerHTML = state.config.columns
           .map(function (column) { return '<option value="' + column.id + '">' + escapeText(column.title) + '</option>'; })
@@ -1267,6 +1337,9 @@ function appHtml() {
         renderIconGrid();
         renderAdmin();
         renderClientSuggestions();
+        if (state.clientsError) {
+          setStatus("Mijozlar bazasi o'qilmadi: " + state.clientsError, true);
+        }
       }
 
       function renderCard(card) {
@@ -1337,16 +1410,25 @@ function appHtml() {
         newClientOpen = false;
         document.getElementById("newClientFields").classList.add("hidden");
         if (editingCard) {
+          var parsed = parseCardTitle(editingCard.title);
+          selectedIcon = parsed.icon || selectedIcon;
           document.getElementById("titleInput").value = editingCard.title;
-          document.getElementById("clientInput").value = guessClient(editingCard.title);
+          document.getElementById("clientInput").value = parsed.clientName || guessClient(editingCard.title);
           document.getElementById("columnInput").value = editingCard.columnId;
-          document.getElementById("dateInput").value = "";
-          document.getElementById("timeInput").value = "";
+          document.getElementById("dateInput").value = parsed.date;
+          document.getElementById("timeInput").value = parsed.time;
+          document.getElementById("dateInput").required = false;
+          document.getElementById("timeInput").required = false;
+          document.getElementById("clientInput").required = false;
         } else {
           document.getElementById("cardForm").reset();
+          selectedIcon = "⭐️";
           document.getElementById("dateInput").value = new Date().toISOString().slice(0, 10);
           document.getElementById("columnInput").value = state.config.columns[0].id;
           document.getElementById("titleInput").value = "";
+          document.getElementById("dateInput").required = true;
+          document.getElementById("timeInput").required = true;
+          document.getElementById("clientInput").required = true;
         }
         document.getElementById("commentInput").value = "";
         updatePreview();
@@ -1415,6 +1497,19 @@ function appHtml() {
       document.getElementById("toggleNewClient").addEventListener("click", function () {
         newClientOpen = !newClientOpen;
         document.getElementById("newClientFields").classList.toggle("hidden", !newClientOpen);
+      });
+      document.getElementById("refreshClientsBtn").addEventListener("click", async function () {
+        setStatus("Mijozlar bazasi yangilanmoqda...");
+        try {
+          var data = await api("/api/clients?force=1");
+          state.clients = data.clients || [];
+          state.clientsError = null;
+          renderClientSuggestions();
+          updatePreview();
+          setStatus("Mijozlar bazasi yangilandi: " + state.clients.length + " ta mijoz.");
+        } catch (error) {
+          setStatus(error.message, true);
+        }
       });
       ["dateInput", "timeInput"].forEach(function (id) {
         document.getElementById(id).addEventListener("input", updatePreview);
@@ -1505,11 +1600,13 @@ export default {
     if (request.method === "POST") {
       const update = await request.json().catch(() => ({}));
       const message = update.message;
-      if (message?.chat?.id && message.text && ["/start", "/app"].includes(String(message.text).split("@")[0])) {
+      const command = String(message?.text || "").trim().split(/\s+/)[0].split("@")[0];
+      if (message?.chat?.id && ["/start", "/app", "/menu"].includes(command)) {
+        await setTelegramMenuButton(env, request.url);
         await sendTelegram(
           env,
           message.chat.id,
-          "ISOMEDIA Kaiten Mini Appni ochish uchun tugmani bosing.",
+          "ISOMEDIA Mini App tayyor. Pastdagi tugma yoki xabar yozish joyidagi menu orqali oching.",
           startKeyboard(env, request.url)
         );
       }
@@ -1517,5 +1614,8 @@ export default {
     }
 
     return new Response("Kaiten Mini App bot is running. Open /app in Telegram.");
+  },
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(getClients(env, true).catch(() => null));
   },
 };

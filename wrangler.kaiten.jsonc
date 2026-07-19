@@ -2,6 +2,11 @@
   "name": "kaiten-miniapp-bot",
   "main": "kaiten-worker/kaiten_bot_worker.js",
   "compatibility_date": "2026-07-19",
+  "triggers": {
+    "crons": [
+      "*/30 * * * *"
+    ]
+  },
   "vars": {
     "KAITEN_DOMAIN": "isoomedia",
     "KAITEN_BOARD_ID": "725343",

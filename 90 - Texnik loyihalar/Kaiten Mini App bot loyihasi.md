@@ -34,6 +34,15 @@ Keyingi amaliy qadamlar:
 4. `npm run deploy:kaiten` bilan deploy qilish
 5. Telegram webhook va Mini App menu buttonni yangi Worker URLga ulash
 
+Oxirgi takomillashtirishlar:
+
+- Telegram `/start`, `/app`, `/menu` komandalarida menu button avtomatik `/app` URLga yangilanadi.
+- Mavjud Kaiten card title ichidan icon, sana, vaqt va mijoz nomi ajratib olinadi.
+- Edit rejimida parsing ishlamasa ham column move date/time bo'shligi sabab bloklanmaydi.
+- Mijozlar bazasi `MIJOZLAR BAZASI!A6:X1000` dan olinadi.
+- Mijozlar ro'yxati Cloudflare KV cachega saqlanadi va har 30 daqiqada cron bilan yangilanadi.
+- Mini App ichida `Mijozlar bazasini yangilash` tugmasi bor.
+
 ## Platforma
 
 - Mini App faqat Telegram bot ichida ochiladi.

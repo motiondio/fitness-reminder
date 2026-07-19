@@ -81,6 +81,8 @@ curl -X POST "https://api.telegram.org/bot$BOT_TOKEN/setWebhook" \
 
 Mini App menu URL doim `/app` bilan tugashi kerak. Worker root `/` ham Mini Appni ochadi, lekin Telegram menu uchun `/app` ishlatish aniqroq.
 
+Botga `/start`, `/app` yoki `/menu` yuborilganda Worker Telegram menu buttonni avtomatik `/app` URLga yangilaydi.
+
 Mini App menu:
 
 ```bash
@@ -99,9 +101,12 @@ curl -X POST "https://api.telegram.org/bot$BOT_TOKEN/setChatMenuButton" \
 
 - 3 ustunli Kaiten board: Shooting day, Shooting process, DONE
 - Yangi syomka yaratish
-- Google Sheetsdan mijozlar ro'yxatini olish
+- Google Sheetsdan mijozlar ro'yxatini olish va KV cachega saqlash
+- Mijozlar cacheini har 30 daqiqada cron orqali yangilash
+- Mini App ichidan mijozlar bazasini qo'lda refresh qilish
 - Yangi mijozni `MIJOZLAR BAZASI` sheetiga yozish
 - Card title edit qilish
+- Mavjud card title ichidan icon, sana, vaqt va mijozni ajratib olish
 - Cardni ustundan ustunga o'tkazish
 - Kaiten comment qo'shish
 - Owner/admin uchun whitelist panel
