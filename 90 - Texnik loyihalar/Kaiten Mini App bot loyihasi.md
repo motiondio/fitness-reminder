@@ -44,6 +44,10 @@ Oxirgi takomillashtirishlar:
 - Mijozlar ro'yxati Cloudflare KV cachega saqlanadi va har 30 daqiqada cron bilan yangilanadi.
 - Mini App ichida `Mijozlar bazasini yangilash` tugmasi bor.
 - `GOOGLE_SERVICE_ACCOUNT_JSON` Cloudflare tarafida JSON object bo'lib kelsa ham qabul qilinadi.
+- Cardni uzoq bosib turib boshqa ustunga drag qilish qo'shildi.
+- Yangi zakaz qo'shilganda riser synth sound va haptic feedback qo'shildi.
+- Interface scale sozlamasi qo'shildi.
+- `Auto`, `Dark`, `White` theme sozlamalari qo'shildi.
 
 ## Platforma
 

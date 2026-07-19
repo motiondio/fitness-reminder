@@ -10,7 +10,7 @@ const CONFIG = {
   clientEndRow: 1000,
 };
 
-const APP_VERSION = "kaiten-miniapp-2026-07-19-04";
+const APP_VERSION = "kaiten-miniapp-2026-07-19-05";
 
 const ICON_PRESETS = [
   { value: "⭐️", label: "Syomka" },
@@ -844,8 +844,10 @@ function appHtml() {
   <style>
     :root {
       color-scheme: dark;
+      --ui-scale: 1;
+      --font-base: 15px;
       --bg: #171717;
-      --surface: #282828;
+      --surface: #242424;
       --card: #3f3f3f;
       --line: rgba(255,255,255,.13);
       --muted: rgba(255,255,255,.62);
@@ -853,8 +855,25 @@ function appHtml() {
       --accent: #8bd3ff;
       --ok: #7ee787;
       --danger: #ff7b72;
+      --field: #151515;
+      --drop: rgba(139,211,255,.12);
+      --active: rgba(139,211,255,.16);
       --radius: 8px;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    }
+    html[data-theme="light"] {
+      color-scheme: light;
+      --bg: #f3f5f7;
+      --surface: #ffffff;
+      --card: #ffffff;
+      --line: rgba(15,23,42,.14);
+      --muted: rgba(15,23,42,.62);
+      --text: #111827;
+      --accent: #2563eb;
+      --danger: #dc2626;
+      --field: #f8fafc;
+      --drop: rgba(37,99,235,.08);
+      --active: rgba(37,99,235,.12);
     }
     * { box-sizing: border-box; }
     html {
@@ -867,7 +886,7 @@ function appHtml() {
       margin: 0;
       background: radial-gradient(circle at 55% 55%, rgba(255,255,255,.16), transparent 22rem), var(--bg);
       color: var(--text);
-      font-size: 15px;
+      font-size: var(--font-base);
       letter-spacing: 0;
       overflow: hidden;
       overscroll-behavior: none;
@@ -877,12 +896,12 @@ function appHtml() {
       font: inherit;
     }
     button {
-      min-height: 40px;
+      min-height: 2.667em;
       border: 1px solid var(--line);
       border-radius: var(--radius);
-      background: #343434;
+      background: var(--surface);
       color: var(--text);
-      padding: 9px 12px;
+      padding: .6em .8em;
       font-weight: 650;
       cursor: pointer;
     }
@@ -894,7 +913,7 @@ function appHtml() {
       margin: 0 auto;
       height: 100vh;
       height: 100dvh;
-      padding: 12px 12px calc(22px + env(safe-area-inset-bottom));
+      padding: .8em .8em calc(1.467em + env(safe-area-inset-bottom));
       display: flex;
       flex-direction: column;
       overflow: hidden;
@@ -902,16 +921,16 @@ function appHtml() {
     .topbar {
       display: grid;
       grid-template-columns: 1fr auto;
-      gap: 12px;
+      gap: .8em;
       align-items: center;
-      margin-bottom: 12px;
+      margin-bottom: .8em;
     }
-    h1 { margin: 0; font-size: 22px; line-height: 1.15; }
-    .meta { color: var(--muted); font-size: 13px; margin-top: 4px; }
+    h1 { margin: 0; font-size: 1.467em; line-height: 1.15; }
+    .meta { color: var(--muted); font-size: .867em; margin-top: 4px; }
     .toolbar {
       display: flex;
       flex-wrap: wrap;
-      gap: 8px;
+      gap: .533em;
       justify-content: flex-end;
     }
     .toolbar button {
@@ -921,8 +940,8 @@ function appHtml() {
       flex: 1 1 auto;
       min-height: 0;
       display: grid;
-      grid-template-columns: repeat(3, minmax(280px, 1fr));
-      gap: 14px;
+      grid-template-columns: repeat(3, minmax(18.667em, 1fr));
+      gap: .933em;
       align-items: start;
       overflow-x: auto;
       overflow-y: hidden;
@@ -931,7 +950,7 @@ function appHtml() {
       -webkit-overflow-scrolling: touch;
     }
     .column {
-      min-width: 280px;
+      min-width: 18.667em;
       height: 100%;
       min-height: 0;
       background: rgba(28,28,28,.9);
@@ -940,19 +959,25 @@ function appHtml() {
       overflow: hidden;
       display: flex;
       flex-direction: column;
+      transition: border-color .18s ease, background .18s ease, transform .18s ease;
+    }
+    .column.drop-target {
+      border-color: var(--accent);
+      background: var(--drop);
+      transform: translateY(-1px);
     }
     .column-head {
       display: grid;
       grid-template-columns: 1fr auto;
-      gap: 8px;
+      gap: .533em;
       align-items: center;
-      padding: 12px;
+      padding: .8em;
       border-bottom: 1px solid var(--line);
     }
-    .column-title { font-size: 18px; font-weight: 750; }
+    .column-title { font-size: 1.2em; font-weight: 750; }
     .badge {
       min-width: 30px;
-      padding: 3px 8px;
+      padding: .2em .533em;
       border-radius: 7px;
       background: rgba(255,255,255,.2);
       text-align: center;
@@ -963,29 +988,47 @@ function appHtml() {
       min-height: 0;
       display: grid;
       align-content: start;
-      gap: 10px;
-      padding: 10px;
+      gap: .667em;
+      padding: .667em;
       overflow-y: auto;
       overscroll-behavior: contain;
       -webkit-overflow-scrolling: touch;
     }
     .card {
       background: var(--card);
-      border: 1px solid rgba(255,255,255,.16);
+      border: 1px solid var(--line);
       border-radius: var(--radius);
-      padding: 12px;
+      padding: .8em;
       text-align: left;
-      min-height: 92px;
+      min-height: 6.133em;
       line-height: 1.35;
       box-shadow: 0 10px 24px rgba(0,0,0,.18);
+      touch-action: manipulation;
+      transition: border-color .16s ease, box-shadow .16s ease, transform .16s ease, opacity .16s ease;
     }
-    .card-title { white-space: pre-wrap; font-size: 17px; }
-    .card-footer { display: flex; gap: 8px; margin-top: 12px; color: var(--muted); font-size: 13px; }
+    .card.pressed {
+      border-color: var(--accent);
+      box-shadow: 0 16px 42px rgba(0,0,0,.32);
+      transform: scale(.985);
+    }
+    .card.dragging {
+      opacity: .34;
+    }
+    .drag-ghost {
+      position: fixed;
+      z-index: 40;
+      width: min(360px, 78vw);
+      pointer-events: none;
+      transform: translate(-50%, -50%) scale(1.02);
+      opacity: .94;
+    }
+    .card-title { white-space: pre-wrap; font-size: 1.133em; }
+    .card-footer { display: flex; gap: .533em; margin-top: .8em; color: var(--muted); font-size: .867em; }
     .client-pill {
       display: inline-block;
       max-width: 100%;
-      margin-top: 10px;
-      padding: 5px 12px;
+      margin-top: .667em;
+      padding: .333em .8em;
       border-radius: 999px;
       background: #bff5fb;
       color: #263238;
@@ -1007,45 +1050,45 @@ function appHtml() {
       width: min(720px, 100%);
       max-height: min(860px, 92vh);
       overflow: auto;
-      background: #202020;
+      background: var(--surface);
       border: 1px solid var(--line);
       border-radius: 12px;
-      padding: 14px;
+      padding: .933em;
       box-shadow: 0 24px 80px rgba(0,0,0,.44);
     }
-    .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-    .field { display: grid; gap: 5px; }
+    .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .667em; }
+    .field { display: grid; gap: .333em; }
     .field.full { grid-column: 1 / -1; }
-    label { color: var(--muted); font-size: 13px; font-weight: 650; }
+    label { color: var(--muted); font-size: .867em; font-weight: 650; }
     input, select, textarea {
       width: 100%;
-      min-height: 42px;
+      min-height: 2.8em;
       border: 1px solid var(--line);
       border-radius: var(--radius);
-      background: #151515;
+      background: var(--field);
       color: var(--text);
-      padding: 9px 10px;
+      padding: .6em .667em;
     }
-    textarea { min-height: 86px; resize: vertical; }
+    textarea { min-height: 5.733em; resize: vertical; }
     .client-combobox { position: relative; }
     .client-suggestions {
       position: absolute;
       left: 0;
       right: 0;
-      top: calc(100% + 6px);
+      top: calc(100% + .4em);
       z-index: 20;
       display: none;
       max-height: 260px;
       overflow-y: auto;
       border: 1px solid rgba(139,211,255,.35);
       border-radius: var(--radius);
-      background: #151515;
+      background: var(--field);
       box-shadow: 0 18px 48px rgba(0,0,0,.42);
     }
     .client-suggestions.open { display: block; }
     .client-suggestion {
       width: 100%;
-      min-height: 52px;
+      min-height: 3.467em;
       border: 0;
       border-bottom: 1px solid var(--line);
       border-radius: 0;
@@ -1055,7 +1098,7 @@ function appHtml() {
     }
     .client-suggestion small {
       display: block;
-      margin-top: 3px;
+      margin-top: .2em;
       color: var(--muted);
       font-weight: 500;
       white-space: nowrap;
@@ -1064,12 +1107,12 @@ function appHtml() {
     }
     .icon-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-      gap: 7px;
+      grid-template-columns: repeat(auto-fit, minmax(8em, 1fr));
+      gap: .467em;
     }
     .icon-choice.active { outline: 2px solid var(--accent); }
     .preview {
-      padding: 12px;
+      padding: .8em;
       border-radius: var(--radius);
       background: rgba(139,211,255,.1);
       border: 1px solid rgba(139,211,255,.25);
@@ -1089,29 +1132,72 @@ function appHtml() {
     .admin-card {
       width: min(720px, 100%);
       margin: max(18px, env(safe-area-inset-top)) auto;
-      background: #242424;
+      background: var(--surface);
       border: 1px solid var(--line);
       border-radius: 12px;
-      padding: 14px;
+      padding: .933em;
       box-shadow: 0 24px 80px rgba(0,0,0,.44);
     }
     .admin-head {
       display: grid;
       grid-template-columns: 1fr auto;
-      gap: 10px;
+      gap: .667em;
       align-items: center;
-      margin-bottom: 12px;
+      margin-bottom: .8em;
     }
-    .admin-head h2 { margin: 0; font-size: 20px; }
+    .admin-head h2 { margin: 0; font-size: 1.333em; }
     .user-row {
       display: grid;
       grid-template-columns: 1fr 120px 80px;
-      gap: 8px;
+      gap: .533em;
       align-items: center;
-      padding: 8px 0;
+      padding: .533em 0;
       border-bottom: 1px solid var(--line);
     }
     .status { margin-top: 10px; color: var(--muted); min-height: 22px; }
+    .settings-panel {
+      position: fixed;
+      inset: 0;
+      display: none;
+      z-index: 13;
+      padding: 14px;
+      background: rgba(0,0,0,.58);
+      overflow: auto;
+      overscroll-behavior: contain;
+    }
+    .settings-panel.open { display: block; }
+    .settings-card {
+      width: min(620px, 100%);
+      margin: max(18px, env(safe-area-inset-top)) auto;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: .933em;
+      box-shadow: 0 24px 80px rgba(0,0,0,.44);
+    }
+    .settings-head {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: .667em;
+      align-items: center;
+      margin-bottom: .8em;
+    }
+    .settings-head h2 { margin: 0; font-size: 1.333em; }
+    .segmented {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: .4em;
+    }
+    .segmented button.active {
+      border-color: var(--accent);
+      background: var(--active);
+    }
+    .range-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: .8em;
+      align-items: center;
+    }
     .error { color: var(--danger); }
     .hidden { display: none; }
     @media (max-width: 760px) {
@@ -1135,11 +1221,13 @@ function appHtml() {
       <div class="toolbar">
         <button class="primary" id="newBtn">+ Yangi syomka</button>
         <button id="refreshBtn">Yangilash</button>
+        <button id="settingsBtn">Ko'rinish</button>
         <button id="adminBtn" class="hidden">Admin</button>
       </div>
     </header>
     <main id="board" class="board"></main>
     <section id="adminPanel" class="admin-panel"></section>
+    <section id="settingsPanel" class="settings-panel"></section>
     <div id="status" class="status"></div>
   </div>
 
@@ -1224,7 +1312,15 @@ function appHtml() {
       var metaEl = document.getElementById("meta");
       var modalEl = document.getElementById("modal");
       var adminPanel = document.getElementById("adminPanel");
+      var settingsPanel = document.getElementById("settingsPanel");
       var clientSuggestions = document.getElementById("clientSuggestions");
+      var audioContext = null;
+      var suppressClickUntil = 0;
+      var dragState = null;
+      var preferences = {
+        theme: "auto",
+        scale: 100
+      };
       var months = ["Yanvar","Fevral","Mart","Aprel","May","Iyun","Iyul","Avgust","Sentabr","Oktabr","Noyabr","Dekabr"];
       var monthMap = months.reduce(function (acc, month, index) {
         acc[month.toLowerCase()] = index + 1;
@@ -1249,6 +1345,116 @@ function appHtml() {
       function setStatus(text, error) {
         statusEl.textContent = text || "";
         statusEl.className = error ? "status error" : "status";
+      }
+
+      function storageGet(key, fallback) {
+        try {
+          var value = localStorage.getItem(key);
+          return value == null ? fallback : value;
+        } catch (_) {
+          return fallback;
+        }
+      }
+
+      function storageSet(key, value) {
+        try {
+          localStorage.setItem(key, value);
+        } catch (_) {
+          return null;
+        }
+      }
+
+      function effectiveTheme(theme) {
+        if (theme === "light" || theme === "dark") {
+          return theme;
+        }
+        if (tg && tg.colorScheme === "light") {
+          return "light";
+        }
+        return window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+      }
+
+      function loadPreferences() {
+        preferences.theme = storageGet("kaiten:theme", "auto");
+        preferences.scale = Number(storageGet("kaiten:scale", "100"));
+        if (!Number.isFinite(preferences.scale)) {
+          preferences.scale = 100;
+        }
+        preferences.scale = Math.min(120, Math.max(85, preferences.scale));
+      }
+
+      function applyPreferences() {
+        var theme = effectiveTheme(preferences.theme);
+        document.documentElement.dataset.theme = theme;
+        document.documentElement.style.setProperty("--ui-scale", String(preferences.scale / 100));
+        document.documentElement.style.setProperty("--font-base", String(15 * preferences.scale / 100) + "px");
+      }
+
+      function savePreferences() {
+        storageSet("kaiten:theme", preferences.theme);
+        storageSet("kaiten:scale", String(preferences.scale));
+        applyPreferences();
+        renderSettings();
+      }
+
+      function haptic(type) {
+        try {
+          if (tg && tg.HapticFeedback) {
+            if (type === "success" && tg.HapticFeedback.notificationOccurred) {
+              tg.HapticFeedback.notificationOccurred("success");
+            } else if (tg.HapticFeedback.impactOccurred) {
+              tg.HapticFeedback.impactOccurred(type || "light");
+            }
+          }
+        } catch (_) {
+          return null;
+        }
+        if (navigator.vibrate) {
+          navigator.vibrate(type === "success" ? [18, 28, 18] : 18);
+        }
+      }
+
+      function playRiser() {
+        try {
+          var AudioCtx = window.AudioContext || window.webkitAudioContext;
+          if (!AudioCtx) return;
+          audioContext = audioContext || new AudioCtx();
+          if (audioContext.state === "suspended") {
+            audioContext.resume();
+          }
+          var now = audioContext.currentTime;
+          var gain = audioContext.createGain();
+          var filter = audioContext.createBiquadFilter();
+          var oscA = audioContext.createOscillator();
+          var oscB = audioContext.createOscillator();
+          filter.type = "lowpass";
+          filter.frequency.setValueAtTime(720, now);
+          filter.frequency.exponentialRampToValueAtTime(4200, now + .62);
+          gain.gain.setValueAtTime(.0001, now);
+          gain.gain.exponentialRampToValueAtTime(.07, now + .08);
+          gain.gain.exponentialRampToValueAtTime(.0001, now + .7);
+          oscA.type = "sine";
+          oscB.type = "triangle";
+          oscA.frequency.setValueAtTime(260, now);
+          oscA.frequency.exponentialRampToValueAtTime(920, now + .65);
+          oscB.frequency.setValueAtTime(392, now);
+          oscB.frequency.exponentialRampToValueAtTime(1320, now + .65);
+          oscA.connect(filter);
+          oscB.connect(filter);
+          filter.connect(gain);
+          gain.connect(audioContext.destination);
+          oscA.start(now);
+          oscB.start(now);
+          oscA.stop(now + .72);
+          oscB.stop(now + .72);
+        } catch (_) {
+          return null;
+        }
+      }
+
+      function celebrateNewCard() {
+        playRiser();
+        haptic("success");
       }
 
       function monthTitle(dateValue) {
@@ -1348,7 +1554,7 @@ function appHtml() {
           .join("");
         boardEl.innerHTML = state.config.columns.map(function (column) {
           var cards = cardsForColumn(column.id);
-          return '<section class="column">' +
+          return '<section class="column" data-column-id="' + column.id + '">' +
             '<div class="column-head"><div class="column-title">' + escapeText(column.title) + '</div><div class="badge">' + cards.length + '</div></div>' +
             '<div class="cards">' + cards.map(renderCard).join("") + '</div>' +
           '</section>';
@@ -1368,6 +1574,144 @@ function appHtml() {
           (client ? '<span class="client-pill">' + escapeText(client) + '</span>' : '') +
           '<div class="card-footer"><span>#' + card.id + '</span><span>💬 ' + Number(card.commentsTotal || 0) + '</span></div>' +
         '</button>';
+      }
+
+      function findCardById(cardId) {
+        return (state.cards || []).find(function (item) {
+          return String(item.id) === String(cardId);
+        });
+      }
+
+      function clearDropTargets() {
+        document.querySelectorAll(".column.drop-target").forEach(function (column) {
+          column.classList.remove("drop-target");
+        });
+      }
+
+      function columnAtPoint(x, y) {
+        var element = document.elementFromPoint(x, y);
+        return element ? element.closest("[data-column-id]") : null;
+      }
+
+      function updateDragGhost(x, y) {
+        if (!dragState || !dragState.ghost) return;
+        dragState.ghost.style.left = x + "px";
+        dragState.ghost.style.top = y + "px";
+        clearDropTargets();
+        var column = columnAtPoint(x, y);
+        if (column) {
+          column.classList.add("drop-target");
+          dragState.targetColumnId = Number(column.getAttribute("data-column-id"));
+        } else {
+          dragState.targetColumnId = null;
+        }
+      }
+
+      function beginDrag() {
+        if (!dragState || dragState.active) return;
+        dragState.active = true;
+        suppressClickUntil = Date.now() + 900;
+        dragState.cardButton.classList.add("dragging");
+        dragState.ghost = dragState.cardButton.cloneNode(true);
+        dragState.ghost.classList.add("drag-ghost");
+        dragState.ghost.classList.remove("pressed");
+        dragState.ghost.removeAttribute("data-card-id");
+        document.body.appendChild(dragState.ghost);
+        haptic("medium");
+        updateDragGhost(dragState.lastX, dragState.lastY);
+        setStatus("Cardni kerakli column ustiga olib borib qo'ying.");
+      }
+
+      function cleanupDrag() {
+        if (!dragState) return;
+        clearTimeout(dragState.timer);
+        clearDropTargets();
+        if (dragState.ghost) {
+          dragState.ghost.remove();
+        }
+        if (dragState.cardButton) {
+          dragState.cardButton.classList.remove("pressed", "dragging");
+        }
+        window.removeEventListener("pointermove", onDragPointerMove);
+        window.removeEventListener("pointerup", onDragPointerUp);
+        window.removeEventListener("pointercancel", onDragPointerCancel);
+        dragState = null;
+      }
+
+      function onDragPointerMove(event) {
+        if (!dragState || event.pointerId !== dragState.pointerId) return;
+        dragState.lastX = event.clientX;
+        dragState.lastY = event.clientY;
+        var distance = Math.hypot(event.clientX - dragState.startX, event.clientY - dragState.startY);
+        if (!dragState.active && distance > 13) {
+          cleanupDrag();
+          return;
+        }
+        if (dragState.active) {
+          event.preventDefault();
+          updateDragGhost(event.clientX, event.clientY);
+        }
+      }
+
+      async function onDragPointerUp(event) {
+        if (!dragState || event.pointerId !== dragState.pointerId) return;
+        var active = dragState.active;
+        var card = dragState.card;
+        var targetColumnId = dragState.targetColumnId;
+        var sourceColumnId = Number(card.columnId);
+        cleanupDrag();
+        if (!active) return;
+        suppressClickUntil = Date.now() + 900;
+        if (!targetColumnId || targetColumnId === sourceColumnId) {
+          setStatus("Card joyi o'zgarmadi.");
+          return;
+        }
+        setStatus("Card ko'chirilmoqda...");
+        try {
+          var data = await api("/api/cards/" + card.id + "/move", {
+            method: "POST",
+            body: { columnId: targetColumnId }
+          });
+          state = data.state;
+          render();
+          haptic("success");
+          setStatus("Card boshqa column'ga o'tkazildi.");
+        } catch (error) {
+          setStatus(error.message, true);
+        }
+      }
+
+      function onDragPointerCancel() {
+        cleanupDrag();
+      }
+
+      function armCardDrag(event) {
+        var cardButton = event.target.closest("[data-card-id]");
+        if (!cardButton || !state) return;
+        if (event.pointerType === "mouse" && event.button !== 0) return;
+        if (dragState) {
+          cleanupDrag();
+        }
+        var card = findCardById(cardButton.getAttribute("data-card-id"));
+        if (!card) return;
+        dragState = {
+          active: false,
+          timer: null,
+          pointerId: event.pointerId,
+          startX: event.clientX,
+          startY: event.clientY,
+          lastX: event.clientX,
+          lastY: event.clientY,
+          cardButton: cardButton,
+          card: card,
+          targetColumnId: Number(card.columnId),
+          ghost: null
+        };
+        cardButton.classList.add("pressed");
+        dragState.timer = setTimeout(beginDrag, 420);
+        window.addEventListener("pointermove", onDragPointerMove, { passive: false });
+        window.addEventListener("pointerup", onDragPointerUp);
+        window.addEventListener("pointercancel", onDragPointerCancel);
       }
 
       function renderIconGrid() {
@@ -1394,6 +1738,28 @@ function appHtml() {
                 (user.role === "owner" ? '<span>env</span>' : '<button type="button" data-delete-user="' + escapeText(user.telegramId) + '">O&#39;chirish</button>') +
               '</div>';
             }).join("") + '</div>' +
+          '</div>';
+      }
+
+      function renderSettings() {
+        settingsPanel.innerHTML =
+          '<div class="settings-card">' +
+            '<div class="settings-head"><h2>Ko&#39;rinish</h2><button id="closeSettingsBtn" type="button">Yopish</button></div>' +
+            '<div class="field full">' +
+              '<label>Theme</label>' +
+              '<div class="segmented">' +
+                '<button type="button" data-theme-choice="auto" class="' + (preferences.theme === "auto" ? "active" : "") + '">Auto</button>' +
+                '<button type="button" data-theme-choice="dark" class="' + (preferences.theme === "dark" ? "active" : "") + '">Dark</button>' +
+                '<button type="button" data-theme-choice="light" class="' + (preferences.theme === "light" ? "active" : "") + '">White</button>' +
+              '</div>' +
+            '</div>' +
+            '<div class="field full">' +
+              '<label>Interface scale</label>' +
+              '<div class="range-row">' +
+                '<input id="scaleInput" type="range" min="85" max="120" step="5" value="' + preferences.scale + '">' +
+                '<strong id="scaleValue">' + preferences.scale + '%</strong>' +
+              '</div>' +
+            '</div>' +
           '</div>';
       }
 
@@ -1471,6 +1837,7 @@ function appHtml() {
 
       async function saveCard(event) {
         event.preventDefault();
+        var wasNewCard = !editingCard;
         var title = document.getElementById("titleInput").value.trim() || buildTitle();
         var columnId = Number(document.getElementById("columnInput").value);
         var comment = document.getElementById("commentInput").value.trim();
@@ -1499,6 +1866,9 @@ function appHtml() {
           state = data.state;
           render();
           closeModal();
+          if (wasNewCard) {
+            celebrateNewCard();
+          }
           setStatus("Saqlandi.");
         } catch (error) {
           setStatus(error.message, true);
@@ -1507,6 +1877,10 @@ function appHtml() {
 
       document.getElementById("newBtn").addEventListener("click", function () { openModal(null); });
       document.getElementById("refreshBtn").addEventListener("click", refresh);
+      document.getElementById("settingsBtn").addEventListener("click", function () {
+        renderSettings();
+        settingsPanel.classList.add("open");
+      });
       document.getElementById("adminBtn").addEventListener("click", function () {
         renderAdmin();
         adminPanel.classList.add("open");
@@ -1555,11 +1929,35 @@ function appHtml() {
         renderIconGrid();
         updatePreview();
       });
+      boardEl.addEventListener("pointerdown", armCardDrag);
       boardEl.addEventListener("click", function (event) {
+        if (Date.now() < suppressClickUntil) {
+          event.preventDefault();
+          return;
+        }
         var cardButton = event.target.closest("[data-card-id]");
         if (!cardButton || !state) return;
         var card = state.cards.find(function (item) { return String(item.id) === cardButton.getAttribute("data-card-id"); });
         if (card) openModal(card);
+      });
+      settingsPanel.addEventListener("click", function (event) {
+        if (event.target === settingsPanel || event.target.id === "closeSettingsBtn") {
+          settingsPanel.classList.remove("open");
+          return;
+        }
+        var themeButton = event.target.closest("[data-theme-choice]");
+        if (themeButton) {
+          preferences.theme = themeButton.getAttribute("data-theme-choice");
+          savePreferences();
+          haptic("light");
+        }
+      });
+      settingsPanel.addEventListener("input", function (event) {
+        if (event.target.id !== "scaleInput") return;
+        preferences.scale = Number(event.target.value);
+        document.getElementById("scaleValue").textContent = preferences.scale + "%";
+        storageSet("kaiten:scale", String(preferences.scale));
+        applyPreferences();
       });
       adminPanel.addEventListener("click", async function (event) {
         if (event.target === adminPanel || event.target.id === "closeAdminBtn") {
@@ -1596,6 +1994,27 @@ function appHtml() {
         }
       });
 
+      loadPreferences();
+      applyPreferences();
+      renderSettings();
+      if (window.matchMedia) {
+        try {
+          window.matchMedia("(prefers-color-scheme: light)").addEventListener("change", function () {
+            if (preferences.theme === "auto") {
+              applyPreferences();
+            }
+          });
+        } catch (_) {}
+      }
+      if (tg && tg.onEvent) {
+        try {
+          tg.onEvent("themeChanged", function () {
+            if (preferences.theme === "auto") {
+              applyPreferences();
+            }
+          });
+        } catch (_) {}
+      }
       refresh();
       setInterval(refresh, 20000);
     }());
