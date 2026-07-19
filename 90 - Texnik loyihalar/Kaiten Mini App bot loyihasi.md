@@ -48,6 +48,8 @@ Oxirgi takomillashtirishlar:
 - Yangi zakaz qo'shilganda riser synth sound va haptic feedback qo'shildi.
 - Fixed compact UI qo'shildi: scale sozlamasisiz, odatdagidan taxminan 7% kichikroq.
 - `Auto`, `Dark`, `White` theme sozlamalari qo'shildi.
+- Card boxlar title va mijoz pilllariga mos balandlashadigan qilindi.
+- Card drag paytida board horizontal scroll vaqtincha bloklanadigan qilindi.
 
 ## Platforma
 

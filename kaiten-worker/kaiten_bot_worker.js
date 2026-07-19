@@ -10,7 +10,7 @@ const CONFIG = {
   clientEndRow: 1000,
 };
 
-const APP_VERSION = "kaiten-miniapp-2026-07-19-06";
+const APP_VERSION = "kaiten-miniapp-2026-07-19-07";
 
 const ICON_PRESETS = [
   { value: "⭐️", label: "Syomka" },
@@ -893,6 +893,11 @@ function appHtml() {
       overscroll-behavior: none;
       -webkit-text-size-adjust: 100%;
     }
+    html.dragging-card,
+    body.dragging-card {
+      touch-action: none;
+      overscroll-behavior: none;
+    }
     button, input, select, textarea {
       font: inherit;
     }
@@ -950,6 +955,10 @@ function appHtml() {
       overscroll-behavior: contain;
       -webkit-overflow-scrolling: touch;
     }
+    .board.drag-lock {
+      overflow: hidden;
+      touch-action: none;
+    }
     .column {
       min-width: 18.667em;
       height: 100%;
@@ -996,16 +1005,18 @@ function appHtml() {
       -webkit-overflow-scrolling: touch;
     }
     .card {
+      display: block;
       width: 100%;
       max-width: 100%;
+      height: auto;
       background: var(--card);
       border: 1px solid var(--line);
       border-radius: var(--radius);
       padding: .8em;
       text-align: left;
-      min-height: 5.733em;
+      min-height: 0;
       line-height: 1.35;
-      overflow: hidden;
+      overflow: visible;
       box-shadow: 0 10px 24px rgba(0,0,0,.18);
       touch-action: manipulation;
       transition: border-color .16s ease, box-shadow .16s ease, transform .16s ease, opacity .16s ease;
@@ -1017,11 +1028,14 @@ function appHtml() {
     }
     .card.dragging {
       opacity: .34;
+      touch-action: none;
     }
     .drag-ghost {
       position: fixed;
       z-index: 40;
       width: min(360px, 78vw);
+      max-height: 55vh;
+      overflow: hidden;
       pointer-events: none;
       transform: translate(-50%, -50%) scale(1.02);
       opacity: .94;
@@ -1598,6 +1612,12 @@ function appHtml() {
         if (!dragState || !dragState.ghost) return;
         dragState.ghost.style.left = x + "px";
         dragState.ghost.style.top = y + "px";
+        if (dragState.boardScrollLeft != null) {
+          boardEl.scrollLeft = dragState.boardScrollLeft;
+        }
+        if (dragState.boardScrollTop != null) {
+          boardEl.scrollTop = dragState.boardScrollTop;
+        }
         clearDropTargets();
         var column = columnAtPoint(x, y);
         if (column) {
@@ -1612,6 +1632,14 @@ function appHtml() {
         if (!dragState || dragState.active) return;
         dragState.active = true;
         suppressClickUntil = Date.now() + 900;
+        dragState.boardScrollLeft = boardEl.scrollLeft;
+        dragState.boardScrollTop = boardEl.scrollTop;
+        document.documentElement.classList.add("dragging-card");
+        document.body.classList.add("dragging-card");
+        boardEl.classList.add("drag-lock");
+        try {
+          dragState.cardButton.setPointerCapture(dragState.pointerId);
+        } catch (_) {}
         dragState.cardButton.classList.add("dragging");
         dragState.ghost = dragState.cardButton.cloneNode(true);
         dragState.ghost.classList.add("drag-ghost");
@@ -1625,13 +1653,30 @@ function appHtml() {
 
       function cleanupDrag() {
         if (!dragState) return;
+        var active = dragState.active;
+        var scrollLeft = dragState.boardScrollLeft;
+        var scrollTop = dragState.boardScrollTop;
         clearTimeout(dragState.timer);
         clearDropTargets();
         if (dragState.ghost) {
           dragState.ghost.remove();
         }
         if (dragState.cardButton) {
+          try {
+            dragState.cardButton.releasePointerCapture(dragState.pointerId);
+          } catch (_) {}
           dragState.cardButton.classList.remove("pressed", "dragging");
+        }
+        if (active) {
+          document.documentElement.classList.remove("dragging-card");
+          document.body.classList.remove("dragging-card");
+          boardEl.classList.remove("drag-lock");
+          if (scrollLeft != null) {
+            boardEl.scrollLeft = scrollLeft;
+          }
+          if (scrollTop != null) {
+            boardEl.scrollTop = scrollTop;
+          }
         }
         window.removeEventListener("pointermove", onDragPointerMove);
         window.removeEventListener("pointerup", onDragPointerUp);

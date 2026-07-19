@@ -120,6 +120,8 @@ curl -X POST "https://api.telegram.org/bot$BOT_TOKEN/setChatMenuButton" \
 - Yangi zakaz qo'shilganda qisqa riser sound va haptic feedback
 - Fixed compact UI: scale sozlamasisiz, odatdagidan taxminan 7% kichikroq
 - Auto, Dark, White theme sozlamalari
+- Card boxlar ichidagi title va mijoz pilllari sig'ishi uchun kontent bo'yicha balandlashadi
+- Card drag paytida board horizontal scroll vaqtincha bloklanadi
 - Kaiten comment qo'shish
 - Owner/admin uchun whitelist panel
 
