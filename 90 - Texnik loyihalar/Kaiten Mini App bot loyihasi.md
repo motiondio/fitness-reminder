@@ -282,7 +282,7 @@ Worker endpointlari:
 
 ## Google API ishlatiladigan joylar
 
-- `MIJOZLAR BAZASI!A6:A` dan mijozlar ro'yxatini o'qish
+- `MIJOZLAR BAZASI!A6:X1000` dan mijozlar ro'yxatini o'qish
 - Yangi mijoz uchun keyingi bo'sh qatorni topish
 - `A`, `V`, `W`, `X` ustunlariga yozish
 
@@ -306,7 +306,7 @@ kaiten-miniapp-sheets@copper-citron-421112.iam.gserviceaccount.com
 1. Telegram Mini App auth va whitelist
 2. Kaiten cardlarni 3 column bo'yicha ko'rsatish
 3. Yangi card yaratish
-4. Mijoz autocomplete
+4. Mijoz autocomplete (`A6:A1000` nomlar, `V/W` qo'shimcha ma'lumot)
 5. Yangi mijozni Google Sheetsga qo'shish
 6. Card title edit
 7. Cardni columnlar orasida move qilish

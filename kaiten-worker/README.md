@@ -79,6 +79,8 @@ curl -X POST "https://api.telegram.org/bot$BOT_TOKEN/setWebhook" \
   -d "{\"url\":\"$WORKER_URL\"}"
 ```
 
+Mini App menu URL doim `/app` bilan tugashi kerak. Worker root `/` ham Mini Appni ochadi, lekin Telegram menu uchun `/app` ishlatish aniqroq.
+
 Mini App menu:
 
 ```bash

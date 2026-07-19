@@ -7,6 +7,7 @@ const CONFIG = {
   boardId: 725343,
   sheetName: "MIJOZLAR BAZASI",
   clientStartRow: 6,
+  clientEndRow: 1000,
 };
 
 const ICON_PRESETS = [
@@ -530,7 +531,7 @@ async function getClients(env, force = false) {
       return cached;
     }
   }
-  const range = encodeURIComponent(`${sheetName(env)}!A${CONFIG.clientStartRow}:X`);
+  const range = encodeURIComponent(`${sheetName(env)}!A${CONFIG.clientStartRow}:X${CONFIG.clientEndRow}`);
   const data = await googleSheetsRequest(env, `/values/${range}`);
   const clients = (data.values || [])
     .map(normalizeClient)
@@ -810,12 +811,21 @@ function appHtml() {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
     }
     * { box-sizing: border-box; }
+    html {
+      height: 100%;
+      overflow: hidden;
+      overscroll-behavior: none;
+    }
     body {
+      height: 100%;
       margin: 0;
       background: radial-gradient(circle at 55% 55%, rgba(255,255,255,.16), transparent 22rem), var(--bg);
       color: var(--text);
       font-size: 15px;
       letter-spacing: 0;
+      overflow: hidden;
+      overscroll-behavior: none;
+      -webkit-text-size-adjust: 100%;
     }
     button, input, select, textarea {
       font: inherit;
@@ -836,7 +846,12 @@ function appHtml() {
     .shell {
       width: min(1320px, 100%);
       margin: 0 auto;
+      height: 100vh;
+      height: 100dvh;
       padding: 12px 12px calc(22px + env(safe-area-inset-bottom));
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
     }
     .topbar {
       display: grid;
@@ -854,20 +869,28 @@ function appHtml() {
       justify-content: flex-end;
     }
     .board {
+      flex: 1 1 auto;
+      min-height: 0;
       display: grid;
       grid-template-columns: repeat(3, minmax(280px, 1fr));
       gap: 14px;
       align-items: start;
       overflow-x: auto;
+      overflow-y: hidden;
       padding-bottom: 10px;
+      overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch;
     }
     .column {
       min-width: 280px;
+      height: 100%;
+      min-height: 0;
       background: rgba(28,28,28,.9);
       border: 1px solid var(--line);
       border-radius: var(--radius);
-      min-height: 70vh;
       overflow: hidden;
+      display: flex;
+      flex-direction: column;
     }
     .column-head {
       display: grid;
@@ -886,7 +909,17 @@ function appHtml() {
       text-align: center;
       font-weight: 750;
     }
-    .cards { display: grid; gap: 10px; padding: 10px; }
+    .cards {
+      flex: 1 1 auto;
+      min-height: 0;
+      display: grid;
+      align-content: start;
+      gap: 10px;
+      padding: 10px;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch;
+    }
     .card {
       background: var(--card);
       border: 1px solid rgba(255,255,255,.16);
@@ -945,6 +978,41 @@ function appHtml() {
       padding: 9px 10px;
     }
     textarea { min-height: 86px; resize: vertical; }
+    .client-combobox { position: relative; }
+    .client-suggestions {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: calc(100% + 6px);
+      z-index: 20;
+      display: none;
+      max-height: 260px;
+      overflow-y: auto;
+      border: 1px solid rgba(139,211,255,.35);
+      border-radius: var(--radius);
+      background: #151515;
+      box-shadow: 0 18px 48px rgba(0,0,0,.42);
+    }
+    .client-suggestions.open { display: block; }
+    .client-suggestion {
+      width: 100%;
+      min-height: 52px;
+      border: 0;
+      border-bottom: 1px solid var(--line);
+      border-radius: 0;
+      background: transparent;
+      text-align: left;
+      font-weight: 600;
+    }
+    .client-suggestion small {
+      display: block;
+      margin-top: 3px;
+      color: var(--muted);
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
     .icon-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
@@ -959,14 +1027,33 @@ function appHtml() {
       white-space: pre-wrap;
     }
     .admin-panel {
-      margin-top: 12px;
+      position: fixed;
+      inset: 0;
       display: none;
-      background: #242424;
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
-      padding: 12px;
+      z-index: 12;
+      padding: 14px;
+      background: rgba(0,0,0,.58);
+      overflow: auto;
+      overscroll-behavior: contain;
     }
     .admin-panel.open { display: block; }
+    .admin-card {
+      width: min(720px, 100%);
+      margin: max(18px, env(safe-area-inset-top)) auto;
+      background: #242424;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 14px;
+      box-shadow: 0 24px 80px rgba(0,0,0,.44);
+    }
+    .admin-head {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .admin-head h2 { margin: 0; font-size: 20px; }
     .user-row {
       display: grid;
       grid-template-columns: 1fr 120px 80px;
@@ -1024,8 +1111,10 @@ function appHtml() {
         </div>
         <div class="field full">
           <label>Mijoz</label>
-          <input id="clientInput" list="clientsList" placeholder="Mijoz nomi" required>
-          <datalist id="clientsList"></datalist>
+          <div class="client-combobox">
+            <input id="clientInput" autocomplete="off" placeholder="Mijoz nomi" required>
+            <div id="clientSuggestions" class="client-suggestions"></div>
+          </div>
         </div>
         <div class="field full">
           <button type="button" id="toggleNewClient">Yangi mijoz ma'lumotlari</button>
@@ -1069,6 +1158,9 @@ function appHtml() {
       if (tg) {
         tg.ready();
         tg.expand();
+        if (typeof tg.disableVerticalSwipes === "function") {
+          tg.disableVerticalSwipes();
+        }
       }
 
       var state = null;
@@ -1080,6 +1172,7 @@ function appHtml() {
       var metaEl = document.getElementById("meta");
       var modalEl = document.getElementById("modal");
       var adminPanel = document.getElementById("adminPanel");
+      var clientSuggestions = document.getElementById("clientSuggestions");
 
       function escapeText(value) {
         return String(value == null ? "" : value)
@@ -1087,6 +1180,13 @@ function appHtml() {
           .replace(/</g, "&lt;")
           .replace(/>/g, "&gt;")
           .replace(/"/g, "&quot;");
+      }
+
+      function normalizeSearch(value) {
+        return String(value == null ? "" : value)
+          .toLowerCase()
+          .replace(/'/g, "")
+          .trim();
       }
 
       function setStatus(text, error) {
@@ -1154,9 +1254,6 @@ function appHtml() {
       function render() {
         metaEl.textContent = state.user.name + " / " + state.user.role;
         document.getElementById("adminBtn").classList.toggle("hidden", !["owner", "admin"].includes(state.user.role));
-        document.getElementById("clientsList").innerHTML = (state.clients || [])
-          .map(function (client) { return '<option value="' + escapeText(client.name) + '"></option>'; })
-          .join("");
         document.getElementById("columnInput").innerHTML = state.config.columns
           .map(function (column) { return '<option value="' + column.id + '">' + escapeText(column.title) + '</option>'; })
           .join("");
@@ -1169,6 +1266,7 @@ function appHtml() {
         }).join("");
         renderIconGrid();
         renderAdmin();
+        renderClientSuggestions();
       }
 
       function renderCard(card) {
@@ -1191,18 +1289,47 @@ function appHtml() {
       function renderAdmin() {
         if (!["owner", "admin"].includes(state.user.role)) return;
         adminPanel.innerHTML =
-          '<h2>Admin whitelist</h2>' +
-          '<div class="form-grid">' +
-            '<input id="adminUserId" placeholder="Telegram ID">' +
-            '<input id="adminUserName" placeholder="Ism">' +
-            '<select id="adminUserRole"><option value="viewer">viewer</option><option value="editor">editor</option><option value="admin">admin</option></select>' +
-            '<button id="addUserBtn" class="primary">Qo&#39;shish</button>' +
-          '</div>' +
-          '<div>' + (state.users || []).map(function (user) {
-            return '<div class="user-row"><span>' + escapeText(user.telegramId + " / " + (user.name || "")) + '</span><strong>' + escapeText(user.role) + '</strong>' +
-              (user.role === "owner" ? '<span>env</span>' : '<button data-delete-user="' + escapeText(user.telegramId) + '">O&#39;chirish</button>') +
-            '</div>';
-          }).join("") + '</div>';
+          '<div class="admin-card">' +
+            '<div class="admin-head"><h2>Admin whitelist</h2><button id="closeAdminBtn" type="button">Yopish</button></div>' +
+            '<div class="form-grid">' +
+              '<input id="adminUserId" inputmode="numeric" placeholder="Telegram ID">' +
+              '<input id="adminUserName" placeholder="Ism">' +
+              '<select id="adminUserRole"><option value="editor">editor</option><option value="viewer">viewer</option><option value="admin">admin</option></select>' +
+              '<button id="addUserBtn" type="button" class="primary">Qo&#39;shish</button>' +
+            '</div>' +
+            '<div>' + (state.users || []).map(function (user) {
+              return '<div class="user-row"><span>' + escapeText(user.telegramId + " / " + (user.name || "")) + '</span><strong>' + escapeText(user.role) + '</strong>' +
+                (user.role === "owner" ? '<span>env</span>' : '<button type="button" data-delete-user="' + escapeText(user.telegramId) + '">O&#39;chirish</button>') +
+              '</div>';
+            }).join("") + '</div>' +
+          '</div>';
+      }
+
+      function renderClientSuggestions() {
+        if (!state || !clientSuggestions) return;
+        var input = document.getElementById("clientInput");
+        var query = normalizeSearch(input.value);
+        if (query.length < 2) {
+          clientSuggestions.classList.remove("open");
+          clientSuggestions.innerHTML = "";
+          return;
+        }
+        var matches = (state.clients || []).filter(function (client) {
+          return normalizeSearch([client.name, client.company, client.phone].filter(Boolean).join(" ")).includes(query);
+        }).slice(0, 10);
+        if (!matches.length) {
+          clientSuggestions.innerHTML = '<button type="button" class="client-suggestion" disabled>Mos mijoz topilmadi</button>';
+          clientSuggestions.classList.add("open");
+          return;
+        }
+        clientSuggestions.innerHTML = matches.map(function (client) {
+          var detail = [client.company, client.phone].filter(Boolean).join(" / ");
+          return '<button type="button" class="client-suggestion" data-client-name="' + escapeText(client.name) + '">' +
+            escapeText(client.name) +
+            (detail ? '<small>' + escapeText(detail) + '</small>' : '') +
+            '</button>';
+        }).join("");
+        clientSuggestions.classList.add("open");
       }
 
       function openModal(card) {
@@ -1228,6 +1355,7 @@ function appHtml() {
 
       function closeModal() {
         modalEl.classList.remove("open");
+        clientSuggestions.classList.remove("open");
       }
 
       function updatePreview() {
@@ -1278,15 +1406,33 @@ function appHtml() {
 
       document.getElementById("newBtn").addEventListener("click", function () { openModal(null); });
       document.getElementById("refreshBtn").addEventListener("click", refresh);
-      document.getElementById("adminBtn").addEventListener("click", function () { adminPanel.classList.toggle("open"); });
+      document.getElementById("adminBtn").addEventListener("click", function () {
+        renderAdmin();
+        adminPanel.classList.add("open");
+      });
       document.getElementById("closeModal").addEventListener("click", closeModal);
       document.getElementById("cardForm").addEventListener("submit", saveCard);
       document.getElementById("toggleNewClient").addEventListener("click", function () {
         newClientOpen = !newClientOpen;
         document.getElementById("newClientFields").classList.toggle("hidden", !newClientOpen);
       });
-      ["dateInput", "timeInput", "clientInput"].forEach(function (id) {
+      ["dateInput", "timeInput"].forEach(function (id) {
         document.getElementById(id).addEventListener("input", updatePreview);
+      });
+      document.getElementById("clientInput").addEventListener("input", function () {
+        updatePreview();
+        renderClientSuggestions();
+      });
+      document.getElementById("clientInput").addEventListener("focus", renderClientSuggestions);
+      document.getElementById("clientInput").addEventListener("blur", function () {
+        setTimeout(function () { clientSuggestions.classList.remove("open"); }, 180);
+      });
+      clientSuggestions.addEventListener("click", function (event) {
+        var button = event.target.closest("[data-client-name]");
+        if (!button) return;
+        document.getElementById("clientInput").value = button.getAttribute("data-client-name");
+        clientSuggestions.classList.remove("open");
+        updatePreview();
       });
       document.getElementById("iconGrid").addEventListener("click", function (event) {
         var button = event.target.closest("[data-icon]");
@@ -1302,6 +1448,10 @@ function appHtml() {
         if (card) openModal(card);
       });
       adminPanel.addEventListener("click", async function (event) {
+        if (event.target === adminPanel || event.target.id === "closeAdminBtn") {
+          adminPanel.classList.remove("open");
+          return;
+        }
         if (event.target.id === "addUserBtn") {
           try {
             var data = await api("/api/admin/users", {
@@ -1314,6 +1464,7 @@ function appHtml() {
             });
             state.users = data.users;
             renderAdmin();
+            setStatus("User whitelistga qo'shildi.");
           } catch (error) {
             setStatus(error.message, true);
           }
@@ -1324,6 +1475,7 @@ function appHtml() {
             var deleted = await api("/api/admin/users/" + deleteButton.getAttribute("data-delete-user"), { method: "DELETE" });
             state.users = deleted.users;
             renderAdmin();
+            setStatus("User whitelistdan o'chirildi.");
           } catch (error) {
             setStatus(error.message, true);
           }
@@ -1342,7 +1494,7 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
-    if (request.method === "GET" && url.pathname === "/app") {
+    if (request.method === "GET" && (url.pathname === "/" || url.pathname === "/app")) {
       return appHtml();
     }
 
