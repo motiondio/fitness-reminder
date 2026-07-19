@@ -412,6 +412,7 @@ function helpMessage() {
     "• /namoz - bugungi namoz vaqtlari",
     "• /qazo - qazo panel",
     "• /qazo_set bomdod 10 - qazo sonini qo'lda kiritish",
+    "• /qazo_bulk bomdod=10 peshin=10 asr=10 shom=10 xufton=10 vitr=10",
     "• /help - yordam",
     "",
     "Progress saqlanishi uchun Cloudflare KV binding kerak: <code>CHECKLIST_STATE</code>.",
@@ -943,6 +944,7 @@ function qazoDashboardKeyboard() {
         { text: `➖ ${prayer.label}`, callback_data: `qz:-:${prayer.key}` },
         { text: `➕ ${prayer.label}`, callback_data: `qz:+:${prayer.key}` },
       ]),
+      [{ text: "✏️ Qo'lda kiritish", callback_data: "qz:template" }],
       [{ text: "🔄 Yangilash", callback_data: "qz:refresh" }],
     ],
   };
@@ -1265,6 +1267,43 @@ function wantsQazo(text) {
   return normalized === "/qazo" || normalized === "/qazolar";
 }
 
+function parseQazoAssignments(text) {
+  const assignments = {};
+  const parts = String(text || "")
+    .replace(/,/g, " ")
+    .split(/\s+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  for (const part of parts) {
+    const match = part.match(/^([^=\s:]+)\s*[=:]\s*(\d+)$/);
+    if (!match) {
+      continue;
+    }
+    const prayer = prayerByName(match[1]);
+    if (prayer) {
+      assignments[prayer.key] = Number(match[2]);
+    }
+  }
+
+  return assignments;
+}
+
+function parseQazoBulkCommand(text) {
+  const normalized = normalizeCommand(text);
+  const command = normalized.split(/\s+/)[0];
+  if (!["/qazo_bulk", "/qazo_edit", "/qazolar_set"].includes(command)) {
+    return null;
+  }
+
+  const assignments = parseQazoAssignments(normalized.replace(command, ""));
+  if (Object.keys(assignments).length === 0) {
+    return { error: true };
+  }
+
+  return { assignments };
+}
+
 function parseQazoCommand(text) {
   const parts = normalizeCommand(text).split(/\s+/).filter(Boolean);
   const command = parts[0];
@@ -1293,7 +1332,24 @@ function qazoUsageMessage() {
     "<code>/qazo_add peshin 1</code>",
     "<code>/qazo_minus asr 1</code>",
     "",
+    "Hammasini bitta xabarda kiritish:",
+    "",
+    "<code>/qazo_bulk bomdod=0 peshin=0 asr=0 shom=0 xufton=0 vitr=0</code>",
+    "",
     "Nomlar: bomdod, peshin, asr, shom, xufton, vitr.",
+  ].join("\n");
+}
+
+function qazoBulkTemplateMessage() {
+  return [
+    "✏️ <b>Qazo sonlarini qo'lda kiritish</b>",
+    "",
+    "Quyidagi namunani yuboring va raqamlarni o'zingiznikiga almashtiring:",
+    "",
+    "<code>/qazo_bulk bomdod=0 peshin=0 asr=0 shom=0 xufton=0 vitr=0</code>",
+    "",
+    "Masalan:",
+    "<code>/qazo_bulk bomdod=120 peshin=80 asr=75 shom=70 xufton=60 vitr=60</code>",
   ].join("\n");
 }
 
@@ -1465,6 +1521,9 @@ export default {
         if (action === "show") {
           await upsertQazoDashboard(env, chatId, threadId);
           await answerCallback(env, callback.id, "Qazo panel yangilandi.");
+        } else if (action === "template") {
+          await sendTelegram(env, chatId, qazoBulkTemplateMessage(), null, threadOptions(threadId));
+          await answerCallback(env, callback.id, "Qo'lda kiritish namunasi yuborildi.");
         } else if (action === "refresh") {
           await editTelegramMessage(
             env,
@@ -1629,6 +1688,20 @@ export default {
 
     if (!isBusinessMessage && !isAllowedChat(env, message.chat.id)) {
       await sendTelegram(env, message.chat.id, "Bu bot shaxsiy foydalanish uchun sozlangan.");
+      return new Response("OK");
+    }
+
+    const qazoBulkCommand = parseQazoBulkCommand(message.text);
+    if (qazoBulkCommand) {
+      if (qazoBulkCommand.error) {
+        await sendTelegram(env, message.chat.id, qazoBulkTemplateMessage(), null, threadOptions(threadId));
+        return new Response("OK");
+      }
+
+      for (const [prayerKey, count] of Object.entries(qazoBulkCommand.assignments)) {
+        await setQazoCount(env, message.chat.id, prayerKey, count);
+      }
+      await upsertQazoDashboard(env, message.chat.id, threadId, "Qazo sonlari qo'lda kiritildi.");
       return new Response("OK");
     }
 

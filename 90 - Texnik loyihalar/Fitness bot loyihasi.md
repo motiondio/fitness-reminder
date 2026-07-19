@@ -29,7 +29,7 @@ Bog'liq notelar:
 - `/tomorrow` ham inline checklist yuboradi va ertangi sana uchun alohida state saqlaydi
 - Checklist tugmalari: task toggle, `✅ Hammasi`, `♻️ Reset`
 - Supergroup topic support: `/threadid`, `TELEGRAM_TOPIC_ID`
-- Namoz moduli: `/namoz`, `/qazo`, `/qazo_set`, `PRAYER_TOPIC_ID`
+- Namoz moduli: `/namoz`, `/qazo`, `/qazo_set`, `/qazo_bulk`, `PRAYER_TOPIC_ID`
 - Namoz eslatmalari Cloudflare Cron Trigger orqali ishlaydi
 - Qazo paneli KV xotirada saqlanadi va groupda pin qilishga urinadi
 - Namoz vaqtlari manbasi: namoz-vaqti.uz `index.php?format=json`, fallback: AlAdhan

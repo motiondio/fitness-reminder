@@ -128,6 +128,7 @@ curl -X POST "https://api.telegram.org/botBOT_TOKEN/setMyCommands" \
 - `/qazo_add peshin 1`
 - `/qazo_minus asr 1`
 - `/qazo_set vitr 10`
+- `/qazo_bulk bomdod=10 peshin=10 asr=10 shom=10 xufton=10 vitr=10`
 - `/help`
 
 ## Namoz eslatmalari
@@ -203,6 +204,14 @@ Qazo hisobini qo'lda kiritish:
 /qazo_minus shom 1
 /qazo_set vitr 5
 ```
+
+Bot ishga tushishidan oldingi qazo sonlari ko'p bo'lsa, hammasini bitta xabarda kiritish mumkin:
+
+```text
+/qazo_bulk bomdod=120 peshin=80 asr=75 shom=70 xufton=60 vitr=60
+```
+
+Qazo paneldagi `✏️ Qo'lda kiritish` tugmasi shu format uchun tayyor namuna yuboradi.
 
 Qabul qilinadigan nomlar:
 
