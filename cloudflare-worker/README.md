@@ -194,7 +194,7 @@ https://fitness-reminder.shahzod-rmusic.workers.dev/app
 
 Mini App bo'limlari:
 
-- Fitness: kunlar bo'yicha checklist, chap/o'ng swipe yoki `‹` / `›` tugmalari bilan sana almashtirish, `Hammasi`, `Reset`
+- Fitness: kunlar bo'yicha checklist, chap/o'ng swipe yoki `‹` / `›` tugmalari bilan sana almashtirish, silliq motion animatsiyalar, `Hammasi`, `Reset`
 - Namoz: bugungi namoz vaqtlari, `O'qidim`, `Qazo`
 - Qazo: Bomdod, Peshin, Asr, Shom, Xufton, Vitr sonlarini `+`, `-` yoki qo'lda raqam kiritib saqlash
 

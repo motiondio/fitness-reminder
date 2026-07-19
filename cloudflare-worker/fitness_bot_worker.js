@@ -1686,6 +1686,8 @@ function miniAppHtml() {
       --ok: #16803c;
       --danger: #b3261e;
       --radius: 8px;
+      --motion-spring: cubic-bezier(0.2, 0.8, 0.2, 1);
+      --motion-soft: cubic-bezier(0.16, 1, 0.3, 1);
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
     }
     * {
@@ -1698,6 +1700,7 @@ function miniAppHtml() {
       color: var(--text);
       font-size: 16px;
       letter-spacing: 0;
+      -webkit-tap-highlight-color: transparent;
     }
     .shell {
       width: min(760px, 100%);
@@ -1744,6 +1747,15 @@ function miniAppHtml() {
       font: inherit;
       font-weight: 650;
       cursor: pointer;
+      transition:
+        transform 180ms var(--motion-spring),
+        background-color 220ms var(--motion-soft),
+        border-color 220ms var(--motion-soft),
+        opacity 220ms var(--motion-soft);
+      touch-action: manipulation;
+    }
+    button:active {
+      transform: scale(0.975);
     }
     button.primary {
       background: var(--button);
@@ -1768,12 +1780,17 @@ function miniAppHtml() {
       background: var(--button);
       color: var(--button-text);
     }
+    #app {
+      transform-origin: 50% 24px;
+      will-change: opacity, transform;
+    }
     .panel {
       margin-top: 12px;
       background: var(--surface);
       border: 1px solid var(--line);
       border-radius: var(--radius);
       overflow: hidden;
+      box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
     }
     .panel-head {
       padding: 14px;
@@ -1797,6 +1814,7 @@ function miniAppHtml() {
       padding: 0;
       font-size: 24px;
       line-height: 1;
+      background: var(--surface-strong);
     }
     .date-pill {
       display: grid;
@@ -1834,6 +1852,7 @@ function miniAppHtml() {
       height: 100%;
       width: 0%;
       background: var(--ok);
+      transition: width 520ms var(--motion-soft);
     }
     .list {
       display: grid;
@@ -1852,6 +1871,14 @@ function miniAppHtml() {
       min-height: 52px;
       padding: 10px 14px;
       font-weight: 550;
+      transition:
+        transform 180ms var(--motion-spring),
+        background-color 220ms var(--motion-soft),
+        opacity 220ms var(--motion-soft);
+    }
+    .row:active {
+      transform: scale(0.992);
+      background: var(--surface-strong);
     }
     .row:last-child {
       border-bottom: 0;
@@ -1866,10 +1893,15 @@ function miniAppHtml() {
       color: var(--button-text);
       font-size: 14px;
       line-height: 1;
+      transition:
+        transform 220ms var(--motion-spring),
+        background-color 220ms var(--motion-soft),
+        border-color 220ms var(--motion-soft);
     }
     .row.done .check {
       background: var(--ok);
       border-color: var(--ok);
+      animation: check-pop 280ms var(--motion-spring);
     }
     .row.done .label {
       text-decoration: line-through;
@@ -1930,6 +1962,87 @@ function miniAppHtml() {
     .hidden {
       display: none;
     }
+    #app.motion-next > .panel {
+      animation: slide-from-right 420ms var(--motion-soft) both;
+    }
+    #app.motion-prev > .panel {
+      animation: slide-from-left 420ms var(--motion-soft) both;
+    }
+    #app.motion-tab > .panel {
+      animation: fade-rise 320ms var(--motion-soft) both;
+    }
+    #app.motion-update > .panel {
+      animation: soft-settle 260ms var(--motion-spring) both;
+    }
+    #app.motion-fade > .panel {
+      animation: fade-rise 360ms var(--motion-soft) both;
+    }
+    #app.motion-next .row,
+    #app.motion-prev .row,
+    #app.motion-tab .row {
+      animation: row-enter 440ms var(--motion-soft) both;
+    }
+    @keyframes slide-from-right {
+      from {
+        opacity: 0;
+        transform: translate3d(34px, 0, 0) scale(0.985);
+      }
+      to {
+        opacity: 1;
+        transform: translate3d(0, 0, 0) scale(1);
+      }
+    }
+    @keyframes slide-from-left {
+      from {
+        opacity: 0;
+        transform: translate3d(-34px, 0, 0) scale(0.985);
+      }
+      to {
+        opacity: 1;
+        transform: translate3d(0, 0, 0) scale(1);
+      }
+    }
+    @keyframes fade-rise {
+      from {
+        opacity: 0;
+        transform: translate3d(0, 10px, 0) scale(0.99);
+      }
+      to {
+        opacity: 1;
+        transform: translate3d(0, 0, 0) scale(1);
+      }
+    }
+    @keyframes soft-settle {
+      from {
+        opacity: 0.9;
+        transform: scale(0.992);
+      }
+      to {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
+    @keyframes row-enter {
+      from {
+        opacity: 0;
+        transform: translate3d(0, 8px, 0);
+      }
+      to {
+        opacity: 1;
+        transform: translate3d(0, 0, 0);
+      }
+    }
+    @keyframes check-pop {
+      0% {
+        transform: scale(0.72);
+      }
+      70% {
+        transform: scale(1.12);
+      }
+      100% {
+        transform: scale(1);
+      }
+    }
     @media (max-width: 420px) {
       .shell {
         padding-left: 10px;
@@ -1942,6 +2055,16 @@ function miniAppHtml() {
       button {
         padding-left: 8px;
         padding-right: 8px;
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        animation-duration: 1ms !important;
+        animation-iteration-count: 1 !important;
+        scroll-behavior: auto !important;
+        transition-duration: 1ms !important;
       }
     }
   </style>
@@ -1978,6 +2101,8 @@ function miniAppHtml() {
       var activeTab = "fitness";
       var selectedFitnessDate = null;
       var busy = false;
+      var pendingMotion = "fade";
+      var reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
       var touchStartX = 0;
       var touchStartY = 0;
       var app = document.getElementById("app");
@@ -1995,6 +2120,13 @@ function miniAppHtml() {
       function setStatus(text, isError) {
         statusEl.textContent = text || "";
         statusEl.className = isError ? "status error" : "status";
+      }
+
+      function runMotion(type) {
+        app.classList.remove("motion-next", "motion-prev", "motion-tab", "motion-update", "motion-fade");
+        if (reduceMotion || !type) return;
+        void app.offsetWidth;
+        app.classList.add("motion-" + type);
       }
 
       function addDays(dateText, delta) {
@@ -2042,7 +2174,8 @@ function miniAppHtml() {
           var data = await api(appStatePath());
           state = data.state;
           selectedFitnessDate = state.fitness.date;
-          render();
+          render(pendingMotion || "fade");
+          pendingMotion = null;
           setStatus("Yangilandi: " + state.now.time);
         } catch (error) {
           setStatus(error.message, true);
@@ -2059,7 +2192,7 @@ function miniAppHtml() {
           var data = await api(path, body);
           state = data.state;
           selectedFitnessDate = state.fitness.date;
-          render();
+          render("update");
           setStatus(message || "Saqlandi.");
           if (tg && tg.HapticFeedback) {
             tg.HapticFeedback.impactOccurred("light");
@@ -2079,24 +2212,27 @@ function miniAppHtml() {
         Array.prototype.forEach.call(document.querySelectorAll("[data-tab]"), function (button) {
           button.classList.toggle("active", button.getAttribute("data-tab") === tab);
         });
-        render();
+        render("tab");
       }
 
       function changeFitnessDate(delta) {
         if (!state || activeTab !== "fitness" || busy) return;
         selectedFitnessDate = addDays(state.fitness.date, delta);
+        pendingMotion = delta > 0 ? "next" : "prev";
         refresh();
       }
 
-      function render() {
+      function render(motion) {
         if (!state) {
           app.innerHTML = '<section class="panel"><div class="panel-head"><h2>Yuklanmoqda</h2></div></section>';
+          runMotion(motion);
           return;
         }
         metaEl.textContent = state.now.date + " • " + state.now.time;
         if (activeTab === "fitness") renderFitness();
         if (activeTab === "prayer") renderPrayer();
         if (activeTab === "qazo") renderQazo();
+        runMotion(motion);
       }
 
       function renderFitness() {
