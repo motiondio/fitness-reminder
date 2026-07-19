@@ -10,7 +10,7 @@ const CONFIG = {
   clientEndRow: 1000,
 };
 
-const APP_VERSION = "kaiten-miniapp-2026-07-19-09";
+const APP_VERSION = "kaiten-miniapp-2026-07-19-10";
 
 const ICON_PRESETS = [
   { value: "⭐️", label: "Syomka" },
@@ -544,6 +544,15 @@ function normalizeClient(row, index) {
   };
 }
 
+function normalizeClientName(value) {
+  return String(value || "").trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+function updatedRangeRow(updatedRange) {
+  const match = String(updatedRange || "").match(/![A-Z]+(\d+)/i);
+  return match ? Number(match[1]) : null;
+}
+
 async function getClients(env, force = false) {
   const cacheKey = "clients:cache";
   if (!force) {
@@ -565,10 +574,51 @@ async function getClients(env, force = false) {
   return clients;
 }
 
+async function putClientsCache(env, clients) {
+  await kvPutJson(env, "clients:cache", clients, CLIENT_CACHE_TTL_SECONDS);
+  await kvPutJson(env, "clients:cache:updatedAt", new Date().toISOString(), CLIENT_CACHE_TTL_SECONDS);
+}
+
+async function primeClientCache(env, client) {
+  let clients = [];
+  try {
+    clients = await getClients(env, true);
+  } catch (_) {
+    const cached = await kvGetJson(env, "clients:cache");
+    clients = Array.isArray(cached) ? cached : Array.isArray(cached?.items) ? cached.items : [];
+  }
+
+  const normalizedName = normalizeClientName(client.name);
+  const cachedClient = {
+    row: client.row || null,
+    name: client.name,
+    company: client.company || "",
+    phone: client.phone || "",
+    note: client.note || "",
+  };
+  const existingIndex = clients.findIndex((item) => normalizeClientName(item.name) === normalizedName);
+  if (existingIndex >= 0) {
+    clients[existingIndex] = { ...clients[existingIndex], ...cachedClient };
+  } else {
+    clients.push(cachedClient);
+  }
+  await putClientsCache(env, clients);
+  return cachedClient;
+}
+
 async function appendClient(env, client) {
   const fullName = String(client.name || `${client.firstName || ""} ${client.lastName || ""}`).trim();
   if (!fullName) {
     throw new Error("Mijoz ismi kiritilmagan.");
+  }
+  const existingClients = await getClients(env).catch(() => []);
+  const existingClient = existingClients.find((item) => normalizeClientName(item.name) === normalizeClientName(fullName));
+  if (existingClient) {
+    return {
+      ...existingClient,
+      alreadyExists: true,
+      updatedRange: null,
+    };
   }
   const row = Array(24).fill("");
   row[0] = fullName;
@@ -584,14 +634,16 @@ async function appendClient(env, client) {
       body: JSON.stringify({ values: [row] }),
     }
   );
-  await kvDelete(env, "clients:cache");
-  return {
+  const createdClient = {
+    row: updatedRangeRow(data.updates?.updatedRange),
     name: fullName,
     company: row[21],
     phone: row[22],
     note: row[23],
     updatedRange: data.updates?.updatedRange,
   };
+  await primeClientCache(env, createdClient);
+  return createdClient;
 }
 
 function uzDateTitle(dateValue) {
@@ -724,6 +776,10 @@ async function handleApi(request, env) {
       if (body.newClient) {
         const client = await appendClient(env, body.client || {});
         clientName = client.name;
+        await audit(env, user, client.alreadyExists ? "client.exists.before_card" : "client.create.before_card", {
+          name: client.name,
+          updatedRange: client.updatedRange || null,
+        });
       }
       const title = String(body.newClient ? buildCardTitle({ ...body, clientName }) : (body.title || buildCardTitle({ ...body, clientName }))).trim();
       if (!title) {
