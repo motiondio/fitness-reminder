@@ -124,6 +124,7 @@ curl -X POST "https://api.telegram.org/botBOT_TOKEN/setMyCommands" \
 - `/qazo_set bomdod 10`
 - `/qazo_add peshin 1`
 - `/qazo_minus asr 1`
+- `/qazo_set vitr 10`
 - `/help`
 
 ## Namoz eslatmalari
@@ -135,9 +136,12 @@ Ishlash tartibi:
 - Namoz vaqti kirsa, bot `PRAYER_CHAT_ID` ichidagi `PRAYER_TOPIC_ID` topicga eslatma yuboradi.
 - Eslatma ichida `✅ O'qidim` va `➕ Qazo bo'ldi` tugmalari bor.
 - `✅ O'qidim` bosilsa, eslatma xabari qoladi va shu namoz uchun qayta eslatma to'xtaydi.
-- `➕ Qazo bo'ldi` bosilsa, shu namoz qazo hisobiga +1 qo'shiladi va eslatma to'xtaydi.
+- `➕ Qazo bo'ldi` bosilsa, shu namoz qazo hisobiga +1 qo'shiladi va eslatma to'xtaydi. Xufton uchun bu Xufton + Vitr qazo hisobini oshiradi.
 - Agar belgilamasangiz, keyingi eslatma yuborilganda oldingi eslatma o'chiriladi. Chatda eslatmalar ko'payib ketmaydi.
 - Bir vaqtning o'zida faqat bitta aktiv namoz eslatmasi turadi.
+- Keyingi namoz vaqti kirganda oldingi namoz `O'qidim` deb belgilanmagan bo'lsa, u avtomatik qazo hisobiga qo'shiladi.
+- Bomdod uchun muddat quyosh chiqishigacha. Quyosh chiqqandan keyin Bomdod eslatmasi kelmaydi va Bomdod qazo hisobiga qo'shiladi.
+- Xufton keyingi kundagi Bomdodgacha eslatilishi mumkin. Agar keyingi Bomdod kirganda Xufton belgilanmagan bo'lsa, Xufton + Vitr qazo hisobiga qo'shiladi.
 - Qazo hisoblari `CHECKLIST_STATE` KV ichida doimiy saqlanadi.
 
 ### Namoz topici
@@ -194,12 +198,13 @@ Qazo hisobini qo'lda kiritish:
 /qazo_set peshin 3
 /qazo_add asr 1
 /qazo_minus shom 1
+/qazo_set vitr 5
 ```
 
 Qabul qilinadigan nomlar:
 
 ```text
-bomdod, peshin, asr, shom, xufton
+bomdod, peshin, asr, shom, xufton, vitr
 ```
 
 Namoz vaqtlari asosiy manba sifatida `https://islomapi.uz/api/daily` orqali olinadi. Bu zero8d/namozvatqiapi reposida ko'rsatilgan endpoint va ma'lumotlar islom.uz asosida.
@@ -219,7 +224,7 @@ PRAYER_DISABLE_FALLBACK=1
 Agar internet/API ishlamasa yoki vaqtlarni qo'lda berishni xohlasangiz, Cloudflare variable sifatida quyidagini qo'shish mumkin:
 
 ```text
-PRAYER_TIMES=bomdod=03:31,peshin=12:29,asr=17:39,shom=19:52,xufton=21:28
+PRAYER_TIMES=bomdod=03:31,quyosh=05:05,peshin=12:29,asr=17:39,shom=19:52,xufton=21:28
 ```
 
 ## Native Telegram checklist

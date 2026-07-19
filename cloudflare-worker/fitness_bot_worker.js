@@ -103,6 +103,11 @@ const PRAYERS = [
   { key: "isha", apiKey: "Isha", label: "Xufton", aliases: ["xufton", "hufton", "isha"] },
 ];
 
+const QAZO_PRAYERS = [
+  ...PRAYERS,
+  { key: "witr", label: "Vitr", aliases: ["vitr", "witr"] },
+];
+
 function tashkentDate(offsetDays = 0) {
   const now = new Date();
   const tashkent = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Tashkent" }));
@@ -175,7 +180,7 @@ function normalizeCommand(text) {
 
 function prayerByName(value) {
   const normalized = String(value || "").toLowerCase().trim();
-  return PRAYERS.find((prayer) => prayer.aliases.includes(normalized)) || null;
+  return QAZO_PRAYERS.find((prayer) => prayer.aliases.includes(normalized)) || null;
 }
 
 function prayerChatId(env) {
@@ -550,6 +555,25 @@ function monthDayFromDateKey(dateKey) {
   return { month, day };
 }
 
+function addDaysToDateKey(dateKey, offsetDays) {
+  const date = parseDate(dateKey);
+  date.setDate(date.getDate() + offsetDays);
+  return formatDate(date);
+}
+
+function formatDuration(minutes) {
+  const safeMinutes = Math.max(0, Math.floor(minutes));
+  const hours = Math.floor(safeMinutes / 60);
+  const remainingMinutes = safeMinutes % 60;
+  if (hours <= 0) {
+    return `${remainingMinutes} daqiqa`;
+  }
+  if (remainingMinutes === 0) {
+    return `${hours} soat`;
+  }
+  return `${hours} soat ${remainingMinutes} daqiqa`;
+}
+
 function prayerTimesCacheKey(env, dateKey) {
   const source = prayerSource(env);
   return [
@@ -572,6 +596,10 @@ function parseManualPrayerTimes(env, dateKey) {
   const rawTimes = {};
   for (const part of String(env.PRAYER_TIMES).split(/[,\n;]/)) {
     const [name, value] = part.split("=").map((item) => item && item.trim());
+    if (["quyosh", "sunrise"].includes(String(name || "").toLowerCase()) && prayerTimeMinutes(value) !== null) {
+      rawTimes.sunrise = value;
+      continue;
+    }
     const prayer = prayerByName(name);
     if (prayer && prayerTimeMinutes(value) !== null) {
       rawTimes[prayer.key] = value;
@@ -587,6 +615,9 @@ function parseManualPrayerTimes(env, dateKey) {
     city: env.PRAYER_CITY || "manual",
     country: env.PRAYER_COUNTRY || "manual",
     source: "manual",
+    sunrise: rawTimes.sunrise
+      ? { time: rawTimes.sunrise, minute: prayerTimeMinutes(rawTimes.sunrise) }
+      : null,
     timings: PRAYERS.map((prayer) => ({
       ...prayer,
       time: rawTimes[prayer.key],
@@ -597,6 +628,7 @@ function parseManualPrayerTimes(env, dateKey) {
 
 function scheduleFromIslomApi(dateKey, region, data) {
   const rawTimes = data.times || {};
+  const sunriseTime = rawTimes.quyosh;
   const mappedTimes = {
     fajr: rawTimes.tong_saharlik,
     dhuhr: rawTimes.peshin,
@@ -621,6 +653,9 @@ function scheduleFromIslomApi(dateKey, region, data) {
     country: "Uzbekistan",
     source: "islomapi",
     weekday: data.weekday,
+    sunrise: sunriseTime
+      ? { time: sunriseTime, minute: prayerTimeMinutes(sunriseTime) }
+      : null,
     timings,
   };
 }
@@ -677,6 +712,9 @@ async function fetchAladhanPrayerSchedule(env, dateKey) {
     country,
     source: "aladhan",
     timezone: data.data.meta?.timezone || "Asia/Tashkent",
+    sunrise: data.data.timings.Sunrise
+      ? { time: data.data.timings.Sunrise, minute: prayerTimeMinutes(data.data.timings.Sunrise) }
+      : null,
     timings,
   };
 }
@@ -742,7 +780,21 @@ async function isPrayerDone(env, chatId, dateKey, prayerKey) {
   return Boolean(await kvGet(env, prayerDoneKey(chatId, dateKey, prayerKey)));
 }
 
-async function markPrayerDone(env, chatId, dateKey, prayerKey, value = "done") {
+async function prayerDoneStatus(env, chatId, dateKey, prayerKey) {
+  return kvGet(env, prayerDoneKey(chatId, dateKey, prayerKey));
+}
+
+function prayerStatusMarker(doneStatus, isDue) {
+  if (doneStatus === "qazo" || doneStatus === "auto_qazo") {
+    return "🧾";
+  }
+  if (doneStatus) {
+    return "✅";
+  }
+  return isDue ? "⏳" : "☐";
+}
+
+async function markPrayerDone(env, chatId, dateKey, prayerKey, value = "done", options = {}) {
   await kvPut(env, prayerDoneKey(chatId, dateKey, prayerKey), value, 60 * 60 * 24 * 120);
   await kvDelete(env, prayerReminderKey(chatId, dateKey, prayerKey));
   const activeRaw = await kvGet(env, activePrayerReminderKey(chatId));
@@ -750,6 +802,9 @@ async function markPrayerDone(env, chatId, dateKey, prayerKey, value = "done") {
     try {
       const active = JSON.parse(activeRaw);
       if (active.date_key === dateKey && active.prayer_key === prayerKey) {
+        if (options.deleteActiveMessage && active.message_id) {
+          await deleteTelegramMessage(env, chatId, active.message_id);
+        }
         await kvDelete(env, activePrayerReminderKey(chatId));
       }
     } catch (_) {
@@ -775,14 +830,14 @@ async function adjustQazoCount(env, chatId, prayerKey, delta) {
 
 async function getQazoCounts(env, chatId) {
   const entries = {};
-  for (const prayer of PRAYERS) {
+  for (const prayer of QAZO_PRAYERS) {
     entries[prayer.key] = await getQazoCount(env, chatId, prayer.key);
   }
   return entries;
 }
 
 function qazoTotal(counts) {
-  return PRAYERS.reduce((total, prayer) => total + Number(counts[prayer.key] || 0), 0);
+  return QAZO_PRAYERS.reduce((total, prayer) => total + Number(counts[prayer.key] || 0), 0);
 }
 
 async function buildQazoDashboardText(env, chatId, notice = null) {
@@ -791,7 +846,7 @@ async function buildQazoDashboardText(env, chatId, notice = null) {
     "🧭 <b>Qazo panel</b>",
     "",
     `<b>Jami qazo: ${qazoTotal(counts)}</b>`,
-    ...PRAYERS.map((prayer) => `${escapeHtml(prayer.label)}: <b>${counts[prayer.key] || 0}</b>`),
+    ...QAZO_PRAYERS.map((prayer) => `${escapeHtml(prayer.label)}: <b>${counts[prayer.key] || 0}</b>`),
     "",
     env.CHECKLIST_STATE ? "Holat KV xotirada saqlanadi." : "KV ulanmagan: qazo hisobi saqlanmaydi.",
     notice ? `\n${escapeHtml(notice)}` : "",
@@ -801,7 +856,7 @@ async function buildQazoDashboardText(env, chatId, notice = null) {
 function qazoDashboardKeyboard() {
   return {
     inline_keyboard: [
-      ...PRAYERS.map((prayer) => [
+      ...QAZO_PRAYERS.map((prayer) => [
         { text: `➖ ${prayer.label}`, callback_data: `qz:-:${prayer.key}` },
         { text: `➕ ${prayer.label}`, callback_data: `qz:+:${prayer.key}` },
       ]),
@@ -848,9 +903,25 @@ function prayerReminderKeyboard(dateKey, prayerKey) {
 
 async function buildPrayerReminderText(env, chatId, schedule, prayer, nowParts) {
   const counts = await getQazoCounts(env, chatId);
-  return [
+  const fajrDeadlineLine = prayer.key === "fajr" && schedule.sunrise?.minute !== null && schedule.sunrise?.minute !== undefined
+    ? `Quyosh chiqishigacha qoldi: <b>${escapeHtml(formatDuration(schedule.sunrise.minute - nowParts.minutes))}</b>`
+    : null;
+  const sunriseLine = prayer.key === "fajr" && schedule.sunrise?.time
+    ? `Quyosh: <b>${escapeHtml(schedule.sunrise.time)}</b>`
+    : null;
+  const headerLines = [
     `🕌 <b>${escapeHtml(prayer.label)} vaqti kirdi</b>`,
     `<code>${escapeHtml(schedule.dateKey)}</code> • <b>${escapeHtml(prayer.time)}</b>`,
+  ];
+  if (fajrDeadlineLine) {
+    headerLines.push(fajrDeadlineLine);
+  }
+  if (sunriseLine) {
+    headerLines.push(sunriseLine);
+  }
+
+  return [
+    ...headerLines,
     "",
     "O'qiguningizcha eslatma qayta keladi.",
     "Yangi eslatma yuborilganda oldingi eslatma o'chiriladi.",
@@ -860,14 +931,104 @@ async function buildPrayerReminderText(env, chatId, schedule, prayer, nowParts) 
   ].join("\n");
 }
 
-function buildPrayerDoneText(schedule, prayer, status) {
+function buildPrayerDoneText(schedule, prayer, status, qazoKeys = null) {
   const isQazo = status === "qazo";
+  const qazoLabel = qazoKeys
+    ? qazoKeys.map(qazoPrayerLabel).join(" + ")
+    : prayer.label;
   return [
     `${isQazo ? "🧾" : "✅"} <b>${escapeHtml(prayer.label)}</b>`,
     `<code>${escapeHtml(schedule.dateKey)}</code> • <b>${escapeHtml(prayer.time)}</b>`,
     "",
-    isQazo ? "Qazo hisobiga qo'shildi." : "O'qildi deb belgilandi.",
+    isQazo ? `${escapeHtml(qazoLabel)} qazo hisobiga qo'shildi.` : "O'qildi deb belgilandi.",
   ].join("\n");
+}
+
+function prayerFromSchedule(schedule, prayerKey) {
+  return schedule.timings.find((prayer) => prayer.key === prayerKey) || null;
+}
+
+function qazoPrayerLabel(prayerKey) {
+  return QAZO_PRAYERS.find((prayer) => prayer.key === prayerKey)?.label || prayerKey;
+}
+
+function missedQazoKeys(prayerKey, includeWitr = false) {
+  if (prayerKey === "isha" && includeWitr) {
+    return ["isha", "witr"];
+  }
+  return [prayerKey];
+}
+
+function prayerDeadlineMinute(schedule, prayerKey) {
+  if (prayerKey === "fajr") {
+    return schedule.sunrise?.minute ?? prayerFromSchedule(schedule, "dhuhr")?.minute ?? null;
+  }
+  if (prayerKey === "dhuhr") {
+    return prayerFromSchedule(schedule, "asr")?.minute ?? null;
+  }
+  if (prayerKey === "asr") {
+    return prayerFromSchedule(schedule, "maghrib")?.minute ?? null;
+  }
+  if (prayerKey === "maghrib") {
+    return prayerFromSchedule(schedule, "isha")?.minute ?? null;
+  }
+  return null;
+}
+
+function isPrayerReminderWindowOpen(schedule, prayer, nowMinutes) {
+  if (nowMinutes < prayer.minute) {
+    return false;
+  }
+  const deadline = prayerDeadlineMinute(schedule, prayer.key);
+  return deadline === null || nowMinutes < deadline;
+}
+
+async function autoQazoPrayer(env, chatId, schedule, prayerKey, options = {}) {
+  const prayer = prayerFromSchedule(schedule, prayerKey);
+  if (!prayer || await isPrayerDone(env, chatId, schedule.dateKey, prayerKey)) {
+    return null;
+  }
+
+  const qazoKeys = missedQazoKeys(prayerKey, options.includeWitr);
+  for (const key of qazoKeys) {
+    await adjustQazoCount(env, chatId, key, 1);
+  }
+  await markPrayerDone(env, chatId, schedule.dateKey, prayerKey, "auto_qazo", {
+    deleteActiveMessage: true,
+  });
+
+  const labels = qazoKeys.map(qazoPrayerLabel).join(" + ");
+  return `${labels} qazo hisobiga avtomatik qo'shildi.`;
+}
+
+async function autoCloseMissedPrayers(env, chatId, schedule, nowParts, threadId) {
+  const notices = [];
+  const fajr = prayerFromSchedule(schedule, "fajr");
+
+  if (fajr && nowParts.minutes >= fajr.minute) {
+    const previousDateKey = addDaysToDateKey(schedule.dateKey, -1);
+    const previousSchedule = await getPrayerSchedule(env, previousDateKey);
+    const notice = await autoQazoPrayer(env, chatId, previousSchedule, "isha", {
+      includeWitr: true,
+    });
+    if (notice) {
+      notices.push(`${previousDateKey}: ${notice}`);
+    }
+  }
+
+  for (const prayer of schedule.timings) {
+    const deadline = prayerDeadlineMinute(schedule, prayer.key);
+    if (deadline !== null && nowParts.minutes >= deadline) {
+      const notice = await autoQazoPrayer(env, chatId, schedule, prayer.key);
+      if (notice) {
+        notices.push(`${schedule.dateKey}: ${notice}`);
+      }
+    }
+  }
+
+  if (notices.length > 0) {
+    await upsertQazoDashboard(env, chatId, threadId, notices.join(" "));
+  }
 }
 
 async function sendPrayerReminder(env, chatId, threadId, schedule, prayer, nowParts) {
@@ -935,10 +1096,20 @@ async function sendPrayerReminder(env, chatId, threadId, schedule, prayer, nowPa
 }
 
 async function pendingPrayer(env, chatId, schedule, nowMinutes) {
-  const duePrayers = schedule.timings.filter((prayer) => prayer.minute <= nowMinutes);
+  const fajr = prayerFromSchedule(schedule, "fajr");
+  if (fajr && nowMinutes < fajr.minute) {
+    const previousSchedule = await getPrayerSchedule(env, addDaysToDateKey(schedule.dateKey, -1));
+    const previousIsha = prayerFromSchedule(previousSchedule, "isha");
+    if (previousIsha && !(await isPrayerDone(env, chatId, previousSchedule.dateKey, "isha"))) {
+      return { schedule: previousSchedule, prayer: previousIsha };
+    }
+    return null;
+  }
+
+  const duePrayers = schedule.timings.filter((prayer) => isPrayerReminderWindowOpen(schedule, prayer, nowMinutes));
   for (const prayer of duePrayers.reverse()) {
     if (!(await isPrayerDone(env, chatId, schedule.dateKey, prayer.key))) {
-      return prayer;
+      return { schedule, prayer };
     }
   }
   return null;
@@ -952,12 +1123,16 @@ async function runPrayerReminder(env) {
 
   const nowParts = tashkentNowParts();
   const schedule = await getPrayerSchedule(env, nowParts.dateKey);
-  const prayer = await pendingPrayer(env, chatId, schedule, nowParts.minutes);
-  if (!prayer) {
+  const threadId = prayerThreadId(env);
+
+  await autoCloseMissedPrayers(env, chatId, schedule, nowParts, threadId);
+
+  const pending = await pendingPrayer(env, chatId, schedule, nowParts.minutes);
+  if (!pending) {
     return;
   }
 
-  await sendPrayerReminder(env, chatId, prayerThreadId(env), schedule, prayer, nowParts);
+  await sendPrayerReminder(env, chatId, threadId, pending.schedule, pending.prayer, nowParts);
 }
 
 async function buildPrayerStatusText(env, chatId) {
@@ -967,9 +1142,12 @@ async function buildPrayerStatusText(env, chatId) {
   const lines = [];
 
   for (const prayer of schedule.timings) {
-    const done = await isPrayerDone(env, chatId, schedule.dateKey, prayer.key);
-    const marker = done ? "✅" : nowParts.minutes >= prayer.minute ? "⏳" : "☐";
+    const doneStatus = await prayerDoneStatus(env, chatId, schedule.dateKey, prayer.key);
+    const marker = prayerStatusMarker(doneStatus, nowParts.minutes >= prayer.minute);
     lines.push(`${marker} ${escapeHtml(prayer.label)}: <b>${escapeHtml(prayer.time)}</b>`);
+    if (prayer.key === "fajr" && schedule.sunrise?.time) {
+      lines.push(`☀️ Quyosh: <b>${escapeHtml(schedule.sunrise.time)}</b>`);
+    }
   }
 
   const next = schedule.timings.find((prayer) => prayer.minute > nowParts.minutes);
@@ -1032,7 +1210,7 @@ function qazoUsageMessage() {
     "<code>/qazo_add peshin 1</code>",
     "<code>/qazo_minus asr 1</code>",
     "",
-    "Nomlar: bomdod, peshin, asr, shom, xufton.",
+    "Nomlar: bomdod, peshin, asr, shom, xufton, vitr.",
   ].join("\n");
 }
 
@@ -1183,21 +1361,24 @@ export default {
           await answerCallback(env, callback.id, "Namoz topilmadi.");
           return new Response("OK");
         }
-        await adjustQazoCount(env, chatId, prayerKey, 1);
+        const qazoKeys = missedQazoKeys(prayerKey, prayerKey === "isha");
+        for (const key of qazoKeys) {
+          await adjustQazoCount(env, chatId, key, 1);
+        }
         await markPrayerDone(env, chatId, dateKey, prayerKey, "qazo");
         await editTelegramMessage(
           env,
           chatId,
           callback.message.message_id,
-          buildPrayerDoneText(targetSchedule, prayer, "qazo"),
+          buildPrayerDoneText(targetSchedule, prayer, "qazo", qazoKeys),
           null,
           threadOptions(threadId)
         );
-        await upsertQazoDashboard(env, chatId, threadId, `${prayer.label} qazo hisobiga qo'shildi.`);
+        await upsertQazoDashboard(env, chatId, threadId, `${qazoKeys.map(qazoPrayerLabel).join(" + ")} qazo hisobiga qo'shildi.`);
         await answerCallback(env, callback.id, "Qazo hisobiga qo'shildi.");
       } else if (callback.data.startsWith("qz:")) {
         const [, action, prayerKey] = callback.data.split(":");
-        const prayer = PRAYERS.find((item) => item.key === prayerKey);
+        const prayer = QAZO_PRAYERS.find((item) => item.key === prayerKey);
         if (action === "show") {
           await upsertQazoDashboard(env, chatId, threadId);
           await answerCallback(env, callback.id, "Qazo panel yangilandi.");

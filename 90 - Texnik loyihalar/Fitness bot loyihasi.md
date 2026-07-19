@@ -33,6 +33,10 @@ Bog'liq notelar:
 - Namoz eslatmalari Cloudflare Cron Trigger orqali ishlaydi
 - Qazo paneli KV xotirada saqlanadi va groupda pin qilishga urinadi
 - Namoz vaqtlari manbasi: islomapi.uz, fallback: AlAdhan
+- Qazo ro'yxati: Bomdod, Peshin, Asr, Shom, Xufton, Vitr
+- Auto-qazo: keyingi namoz kirsa oldingi belgilanmagan namoz qazo bo'ladi
+- Bomdod muddati: quyosh chiqishigacha
+- Xufton muddati: keyingi Bomdodgacha; o'tib ketsa Xufton + Vitr qazo bo'ladi
 
 ## Keyingi bosqichlar
 
