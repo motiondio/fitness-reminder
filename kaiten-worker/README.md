@@ -122,6 +122,7 @@ curl -X POST "https://api.telegram.org/bot$BOT_TOKEN/setChatMenuButton" \
 - Auto, Dark, White theme sozlamalari
 - Card boxlar ichidagi title va mijoz pilllari sig'ishi uchun kontent bo'yicha balandlashadi
 - Card drag paytida board horizontal scroll vaqtincha bloklanadi
+- Yangi mijoz qo'shishda mavjud mijoz inputi majburiy bo'lmaydi va title ism/familiyadan yig'iladi
 - Kaiten comment qo'shish
 - Owner/admin uchun whitelist panel
 

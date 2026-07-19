@@ -10,7 +10,7 @@ const CONFIG = {
   clientEndRow: 1000,
 };
 
-const APP_VERSION = "kaiten-miniapp-2026-07-19-07";
+const APP_VERSION = "kaiten-miniapp-2026-07-19-08";
 
 const ICON_PRESETS = [
   { value: "⭐️", label: "Syomka" },
@@ -725,7 +725,7 @@ async function handleApi(request, env) {
         const client = await appendClient(env, body.client || {});
         clientName = client.name;
       }
-      const title = String(body.title || buildCardTitle({ ...body, clientName })).trim();
+      const title = String(body.newClient ? buildCardTitle({ ...body, clientName }) : (body.title || buildCardTitle({ ...body, clientName }))).trim();
       if (!title) {
         return jsonResponse({ ok: false, error: "Card title bo'sh." }, 400);
       }
@@ -1504,10 +1504,26 @@ function appHtml() {
         };
       }
 
+      function newClientName() {
+        return [
+          document.getElementById("firstNameInput").value,
+          document.getElementById("lastNameInput").value
+        ].map(function (part) {
+          return String(part || "").trim();
+        }).filter(Boolean).join(" ");
+      }
+
+      function selectedClientName() {
+        if (newClientOpen) {
+          return newClientName();
+        }
+        return document.getElementById("clientInput").value.trim();
+      }
+
       function buildTitle() {
         var dateText = monthTitle(document.getElementById("dateInput").value);
         var time = document.getElementById("timeInput").value.trim();
-        var client = document.getElementById("clientInput").value.trim();
+        var client = selectedClientName();
         return [selectedIcon ? selectedIcon + dateText : dateText, time, client].filter(Boolean).join(" ").trim();
       }
 
@@ -1833,6 +1849,9 @@ function appHtml() {
         editingCard = card || null;
         newClientOpen = false;
         document.getElementById("newClientFields").classList.add("hidden");
+        document.getElementById("toggleNewClient").textContent = "Yangi mijoz ma'lumotlari";
+        document.getElementById("firstNameInput").required = false;
+        document.getElementById("lastNameInput").required = false;
         if (editingCard) {
           var parsed = parseCardTitle(editingCard.title);
           selectedIcon = parsed.icon || selectedIcon;
@@ -1880,6 +1899,7 @@ function appHtml() {
         var title = document.getElementById("titleInput").value.trim() || buildTitle();
         var columnId = Number(document.getElementById("columnInput").value);
         var comment = document.getElementById("commentInput").value.trim();
+        var clientName = selectedClientName();
         try {
           var payload = {
             title: title,
@@ -1887,13 +1907,13 @@ function appHtml() {
             icon: selectedIcon,
             date: document.getElementById("dateInput").value,
             time: document.getElementById("timeInput").value,
-            clientName: document.getElementById("clientInput").value,
+            clientName: clientName,
             comment: comment
           };
           if (newClientOpen) {
             payload.newClient = true;
             payload.client = {
-              name: (document.getElementById("firstNameInput").value + " " + document.getElementById("lastNameInput").value).trim(),
+              name: clientName,
               company: document.getElementById("companyInput").value,
               phone: document.getElementById("phoneInput").value,
               note: document.getElementById("noteInput").value
@@ -1929,6 +1949,14 @@ function appHtml() {
       document.getElementById("toggleNewClient").addEventListener("click", function () {
         newClientOpen = !newClientOpen;
         document.getElementById("newClientFields").classList.toggle("hidden", !newClientOpen);
+        document.getElementById("clientInput").required = !newClientOpen && !editingCard;
+        document.getElementById("firstNameInput").required = newClientOpen;
+        document.getElementById("lastNameInput").required = newClientOpen;
+        document.getElementById("toggleNewClient").textContent = newClientOpen ? "Mavjud mijozdan tanlash" : "Yangi mijoz ma'lumotlari";
+        if (newClientOpen) {
+          clientSuggestions.classList.remove("open");
+        }
+        updatePreview();
       });
       document.getElementById("refreshClientsBtn").addEventListener("click", async function () {
         setStatus("Mijozlar bazasi yangilanmoqda...");
@@ -1953,6 +1981,9 @@ function appHtml() {
       document.getElementById("clientInput").addEventListener("focus", renderClientSuggestions);
       document.getElementById("clientInput").addEventListener("blur", function () {
         setTimeout(function () { clientSuggestions.classList.remove("open"); }, 180);
+      });
+      ["firstNameInput", "lastNameInput"].forEach(function (id) {
+        document.getElementById(id).addEventListener("input", updatePreview);
       });
       clientSuggestions.addEventListener("click", function (event) {
         var button = event.target.closest("[data-client-name]");

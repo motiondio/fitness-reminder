@@ -50,6 +50,7 @@ Oxirgi takomillashtirishlar:
 - `Auto`, `Dark`, `White` theme sozlamalari qo'shildi.
 - Card boxlar title va mijoz pilllariga mos balandlashadigan qilindi.
 - Card drag paytida board horizontal scroll vaqtincha bloklanadigan qilindi.
+- Yangi mijoz qo'shishda mavjud mijoz inputi majburiy bo'lmaydigan va card title ism/familiyadan yig'iladigan qilindi.
 
 ## Platforma
 
