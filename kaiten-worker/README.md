@@ -109,6 +109,7 @@ curl -X POST "https://api.telegram.org/bot$BOT_TOKEN/setChatMenuButton" \
 
 - 3 ustunli Kaiten board: Shooting day, Shooting process, DONE
 - Yangi syomka yaratish
+- Yangi syomka modalida preview yuqorida sticky holatda ko'rinib turadi
 - Syomka iconlari tayyor preset emas: 3 bo'limdan 3 tagacha iconni mustaqil tanlash mumkin
 - Google Sheetsdan mijozlar ro'yxatini olish va KV cachega saqlash
 - Mijozlar cacheini har 30 daqiqada cron orqali yangilash
@@ -123,6 +124,7 @@ curl -X POST "https://api.telegram.org/bot$BOT_TOKEN/setChatMenuButton" \
 - Yangi zakaz qo'shilganda qisqa riser sound va haptic feedback
 - Fixed compact UI: scale sozlamasisiz, odatdagidan taxminan 7% kichikroq
 - Auto, Dark, White theme sozlamalari
+- Modal va panellar tashqarisiga bosilganda asosiy ekranga qaytadi
 - Card boxlar ichidagi title va Kaiten tag pilllari sig'ishi uchun kontent bo'yicha balandlashadi
 - Carddagi pastki pilllar mijoz nomidan emas, Kaiten card taglaridan olinadi
 - Cardlar har bir column ichida Kaiten `sort_order` bo'yicha ko'rsatiladi

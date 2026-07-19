@@ -49,6 +49,8 @@ Oxirgi takomillashtirishlar:
 - Fixed compact UI qo'shildi: scale sozlamasisiz, odatdagidan taxminan 7% kichikroq.
 - `Auto`, `Dark`, `White` theme sozlamalari qo'shildi.
 - Icon tanlash tayyor presetlardan multi-selectga o'tkazildi: asosiy ish, yo'nalish va modifierlardan maksimum 3 ta icon tanlanadi.
+- Yangi syomka preview bloki form tepasiga ko'chirildi va scroll paytida sticky ko'rinadi.
+- Modal yoki panel tashqarisiga bosilganda asosiy ekranga qaytish qo'shildi.
 - Card boxlar title va Kaiten tag pilllariga mos balandlashadigan qilindi.
 - Card drag paytida board horizontal scroll vaqtincha bloklanadigan qilindi.
 - Yangi syomka formidan yangi mijoz maydonlari olib tashlandi; yangi mijoz alohida menu orqali qo'shiladigan qilindi.

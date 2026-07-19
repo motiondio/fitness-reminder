@@ -10,7 +10,7 @@ const CONFIG = {
   clientEndRow: 1000,
 };
 
-const APP_VERSION = "kaiten-miniapp-2026-07-19-16";
+const APP_VERSION = "kaiten-miniapp-2026-07-19-17";
 
 const ICON_GROUPS = [
   {
@@ -1318,6 +1318,14 @@ function appHtml() {
     .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .667em; }
     .field { display: grid; gap: .333em; }
     .field.full { grid-column: 1 / -1; }
+    .sticky-preview {
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      margin: -.133em -.133em .133em;
+      padding: .133em .133em .533em;
+      background: linear-gradient(to bottom, var(--surface) 78%, rgba(0,0,0,0));
+    }
     label { color: var(--muted); font-size: .867em; font-weight: 650; }
     input, select, textarea {
       width: 100%;
@@ -1640,6 +1648,10 @@ function appHtml() {
   <div id="modal" class="modal" aria-hidden="true">
     <div class="sheet">
       <form id="cardForm" class="form-grid">
+        <div class="field full sticky-preview">
+          <label>Preview</label>
+          <div id="preview" class="preview"></div>
+        </div>
         <div class="field full">
           <label>Icon</label>
           <div id="iconGrid" class="icon-grid"></div>
@@ -1665,10 +1677,6 @@ function appHtml() {
         </div>
         <div class="field full">
           <button type="button" id="refreshClientsBtn">Mijozlar bazasini yangilash</button>
-        </div>
-        <div class="field full">
-          <label>Preview</label>
-          <div id="preview" class="preview"></div>
         </div>
         <div class="field full">
           <label>Title edit</label>
@@ -2692,6 +2700,16 @@ function appHtml() {
       document.getElementById("closeClientModal").addEventListener("click", closeClientModal);
       document.getElementById("closeTimeModal").addEventListener("click", closeTimeModal);
       document.getElementById("applyTimeModal").addEventListener("click", applyTimeSelection);
+      modalEl.addEventListener("click", function (event) {
+        if (event.target === modalEl) {
+          closeModal();
+        }
+      });
+      clientModalEl.addEventListener("click", function (event) {
+        if (event.target === clientModalEl) {
+          closeClientModal();
+        }
+      });
       document.getElementById("cardForm").addEventListener("submit", saveCard);
       document.getElementById("clientForm").addEventListener("submit", saveClient);
       document.getElementById("refreshClientsBtn").addEventListener("click", async function () {
