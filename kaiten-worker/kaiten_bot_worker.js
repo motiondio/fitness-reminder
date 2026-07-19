@@ -10,7 +10,7 @@ const CONFIG = {
   clientEndRow: 1000,
 };
 
-const APP_VERSION = "kaiten-miniapp-2026-07-19-11";
+const APP_VERSION = "kaiten-miniapp-2026-07-19-12";
 
 const ICON_PRESETS = [
   { value: "⭐️", label: "Syomka" },
@@ -51,6 +51,7 @@ const UZ_MONTHS = [
 ];
 
 const CLIENT_CACHE_TTL_SECONDS = 60 * 60 * 24 * 7;
+const CARD_DETAIL_CACHE_TTL_SECONDS = 60;
 
 let googleTokenCache = null;
 
@@ -364,7 +365,8 @@ function normalizeKaitenCard(card) {
     title: String(card.title || ""),
     columnId: card.column_id,
     boardId: card.board_id,
-    sortOrder: card.sort_order || 0,
+    sortOrder: Number(card.sort_order ?? card.position ?? 0),
+    tags: normalizeKaitenTags(card.tags || card.card_tags || []),
     state: card.state,
     commentsTotal: card.comments_total || 0,
     updated: card.updated,
@@ -373,8 +375,72 @@ function normalizeKaitenCard(card) {
   };
 }
 
+function normalizeKaitenTags(tags) {
+  if (!Array.isArray(tags)) {
+    return [];
+  }
+  const seen = new Set();
+  return tags
+    .map((tag) => {
+      const name = String(
+        typeof tag === "string"
+          ? tag
+          : tag?.name || tag?.title || tag?.text || ""
+      ).trim();
+      if (!name) {
+        return null;
+      }
+      const key = name.toLowerCase();
+      if (seen.has(key)) {
+        return null;
+      }
+      seen.add(key);
+      return {
+        id: tag?.id || name,
+        name,
+        color: String(tag?.color || tag?.color_id || tag?.background_color || "").trim(),
+      };
+    })
+    .filter(Boolean);
+}
+
+function cardDetailCacheKey(card) {
+  return `kaiten:card-detail:${card.id}:${card.updated || "latest"}`;
+}
+
+async function fetchKaitenCardDetail(env, card) {
+  if ((card.tags || []).length) {
+    return card;
+  }
+  const cacheKey = cardDetailCacheKey(card);
+  const cached = await kvGetJson(env, cacheKey);
+  if (cached && Array.isArray(cached.tags)) {
+    return { ...card, tags: cached.tags };
+  }
+
+  try {
+    const detail = await kaitenRequest(env, `/cards/${Number(card.id)}`);
+    const tags = normalizeKaitenTags(detail?.tags || detail?.card_tags || []);
+    await kvPutJson(env, cacheKey, { tags }, CARD_DETAIL_CACHE_TTL_SECONDS);
+    return { ...card, tags };
+  } catch (_) {
+    return { ...card, tags: [] };
+  }
+}
+
+async function enrichKaitenCards(env, cards) {
+  const enriched = [];
+  const chunkSize = 8;
+  for (let index = 0; index < cards.length; index += chunkSize) {
+    const chunk = cards.slice(index, index + chunkSize);
+    enriched.push(...await Promise.all(chunk.map((card) => fetchKaitenCardDetail(env, card))));
+  }
+  return enriched;
+}
+
 async function getKaitenCards(env) {
   const columns = columnConfig(env);
+  const columnOrder = new Map(columns.map((column, index) => [column.id, index]));
   const ids = columns.map((column) => column.id).join(",");
   const params = new URLSearchParams({
     board_id: String(boardId(env)),
@@ -386,9 +452,22 @@ async function getKaitenCards(env) {
   });
   const data = await kaitenRequest(env, `/cards?${params}`);
   const rawCards = Array.isArray(data) ? data : data?.result || [];
-  return rawCards
+  const cards = rawCards
     .filter((card) => columns.some((column) => column.id === Number(card.column_id)))
-    .map(normalizeKaitenCard);
+    .map(normalizeKaitenCard)
+    .sort((left, right) => {
+      const leftColumn = columnOrder.get(Number(left.columnId)) ?? Number.MAX_SAFE_INTEGER;
+      const rightColumn = columnOrder.get(Number(right.columnId)) ?? Number.MAX_SAFE_INTEGER;
+      if (leftColumn !== rightColumn) {
+        return leftColumn - rightColumn;
+      }
+      const orderDiff = Number(left.sortOrder || 0) - Number(right.sortOrder || 0);
+      if (orderDiff !== 0) {
+        return orderDiff;
+      }
+      return Number(left.id || 0) - Number(right.id || 0);
+    });
+  return enrichKaitenCards(env, cards);
 }
 
 async function createKaitenCard(env, title, columnId = null) {
@@ -1066,6 +1145,7 @@ function appHtml() {
       display: flex;
       flex-direction: column;
       align-items: flex-start;
+      gap: .6em;
       width: 100%;
       max-width: 100%;
       height: auto;
@@ -1076,7 +1156,7 @@ function appHtml() {
       text-align: left;
       min-height: 5.6em;
       line-height: 1.35;
-      overflow: hidden;
+      overflow: visible;
       box-shadow: 0 10px 24px rgba(0,0,0,.18);
       touch-action: manipulation;
       cursor: pointer;
@@ -1113,14 +1193,20 @@ function appHtml() {
       display: flex;
       flex-wrap: wrap;
       gap: .533em;
-      margin-top: .8em;
+      margin-top: 0;
       color: var(--muted);
       font-size: .867em;
     }
-    .client-pill {
-      display: inline-block;
+    .tag-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: .4em;
       max-width: 100%;
-      margin-top: .667em;
+    }
+    .staff-pill {
+      display: inline-flex;
+      align-items: center;
+      max-width: 100%;
       padding: .333em .8em;
       border-radius: 999px;
       background: #bff5fb;
@@ -1129,6 +1215,10 @@ function appHtml() {
       overflow-wrap: anywhere;
       white-space: normal;
     }
+    .staff-pill.c2 { background: #d8c7ff; }
+    .staff-pill.c3 { background: #bfe1ff; }
+    .staff-pill.c4 { background: #ffe1ad; }
+    .staff-pill.c5 { background: #d8f8c4; }
     .modal {
       position: fixed;
       inset: 0;
@@ -1640,10 +1730,23 @@ function appHtml() {
         }
       }
 
+      function cardOrderValue(card) {
+        var value = Number(card.sortOrder);
+        return Number.isFinite(value) ? value : 0;
+      }
+
       function cardsForColumn(columnId) {
-        return (state.cards || []).filter(function (card) {
-          return Number(card.columnId) === Number(columnId);
-        });
+        return (state.cards || [])
+          .filter(function (card) {
+            return Number(card.columnId) === Number(columnId);
+          })
+          .sort(function (left, right) {
+            var orderDiff = cardOrderValue(left) - cardOrderValue(right);
+            if (orderDiff !== 0) {
+              return orderDiff;
+            }
+            return Number(left.id || 0) - Number(right.id || 0);
+          });
       }
 
       function guessClient(title) {
@@ -1677,11 +1780,24 @@ function appHtml() {
         }
       }
 
+      function tagClass(tag, index) {
+        var raw = String(tag && tag.color ? tag.color : "").replace(/\D/g, "");
+        var number = raw ? Number(raw) : index + 1;
+        return "c" + ((number % 5) + 1);
+      }
+
+      function renderTag(tag, index) {
+        var name = typeof tag === "string" ? tag : tag && tag.name ? tag.name : "";
+        if (!name) return "";
+        return '<span class="staff-pill ' + tagClass(tag, index) + '">' + escapeText(name) + '</span>';
+      }
+
       function renderCard(card) {
-        var client = guessClient(card.title);
+        var tags = Array.isArray(card.tags) ? card.tags : [];
+        var tagHtml = tags.map(renderTag).filter(Boolean).join("");
         return '<article class="card" role="button" tabindex="0" data-card-id="' + card.id + '">' +
           '<div class="card-title">' + escapeText(card.title) + '</div>' +
-          (client ? '<span class="client-pill">' + escapeText(client) + '</span>' : '') +
+          (tagHtml ? '<div class="tag-list">' + tagHtml + '</div>' : '') +
           '<div class="card-footer"><span>#' + card.id + '</span><span>💬 ' + Number(card.commentsTotal || 0) + '</span></div>' +
         '</article>';
       }

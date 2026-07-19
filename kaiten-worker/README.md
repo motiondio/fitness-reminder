@@ -121,7 +121,9 @@ curl -X POST "https://api.telegram.org/bot$BOT_TOKEN/setChatMenuButton" \
 - Yangi zakaz qo'shilganda qisqa riser sound va haptic feedback
 - Fixed compact UI: scale sozlamasisiz, odatdagidan taxminan 7% kichikroq
 - Auto, Dark, White theme sozlamalari
-- Card boxlar ichidagi title va mijoz pilllari sig'ishi uchun kontent bo'yicha balandlashadi
+- Card boxlar ichidagi title va Kaiten tag pilllari sig'ishi uchun kontent bo'yicha balandlashadi
+- Carddagi pastki pilllar mijoz nomidan emas, Kaiten card taglaridan olinadi
+- Cardlar har bir column ichida Kaiten `sort_order` bo'yicha ko'rsatiladi
 - Card drag paytida board horizontal scroll vaqtincha bloklanadi
 - Yangi syomka formidan yangi mijoz maydonlari olib tashlandi; yangi mijoz alohida menu orqali qo'shiladi
 - Yangi mijoz card yaratilishidan oldin Google Sheetsga yoziladi va KV cache darhol yangilanadi

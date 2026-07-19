@@ -48,12 +48,15 @@ Oxirgi takomillashtirishlar:
 - Yangi zakaz qo'shilganda riser synth sound va haptic feedback qo'shildi.
 - Fixed compact UI qo'shildi: scale sozlamasisiz, odatdagidan taxminan 7% kichikroq.
 - `Auto`, `Dark`, `White` theme sozlamalari qo'shildi.
-- Card boxlar title va mijoz pilllariga mos balandlashadigan qilindi.
+- Card boxlar title va Kaiten tag pilllariga mos balandlashadigan qilindi.
 - Card drag paytida board horizontal scroll vaqtincha bloklanadigan qilindi.
 - Yangi syomka formidan yangi mijoz maydonlari olib tashlandi; yangi mijoz alohida menu orqali qo'shiladigan qilindi.
 - Syomka yaratishda boshlanish va tugash vaqtini alohida `time` inputlardan tanlash qo'shildi.
 - Yangi mijoz card yaratilishidan oldin Google Sheetsga yoziladigan va KV cache darhol yangilanadigan qilindi.
 - Cardlar Telegram iOS WebView'da balandlik buzilmasligi uchun button emas, clickable article sifatida render qilinadigan qilindi.
+- Carddagi pastki pilllar mijoz nomidan emas, Kaiten card taglaridan olinadigan qilindi.
+- Cardlar har bir column ichida Kaiten `sort_order` bo'yicha ko'rsatiladigan qilindi.
+- Uzun title va tag nomlari kesilib qolmasligi uchun card balandligi kontentga moslashadigan qilindi.
 
 ## Platforma
 
@@ -236,8 +239,7 @@ Card ko'rinishi Kaitenga yaqin bo'ladi:
 
 - Dark card
 - Title
-- Mijoz label
-- Mas'ul label
+- Kaiten taglardan olingan mas'ul label
 - Comment icon / count bo'lsa ko'rsatish
 
 ### New Shooting
