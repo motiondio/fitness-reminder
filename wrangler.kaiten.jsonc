@@ -1,0 +1,29 @@
+{
+  "name": "kaiten-miniapp-bot",
+  "main": "kaiten-worker/kaiten_bot_worker.js",
+  "compatibility_date": "2026-07-19",
+  "vars": {
+    "KAITEN_DOMAIN": "isoomedia",
+    "KAITEN_BOARD_ID": "725343",
+    "KAITEN_COLUMN_SHOOTING_DAY": "2596315",
+    "KAITEN_COLUMN_SHOOTING_PROCESS": "2596316",
+    "KAITEN_COLUMN_DONE": "2596317",
+    "GOOGLE_SHEET_ID": "1wQKc0kCXrnWrt-lqqg8oYXRBO6ai7LaiH8BlEthpr6U",
+    "GOOGLE_SHEET_NAME": "MIJOZLAR BAZASI",
+    "OWNER_TELEGRAM_ID": "8084782034",
+    "MINI_APP_AUTH_MAX_AGE_SECONDS": "604800"
+  },
+  "kv_namespaces": [
+    {
+      "binding": "KAITEN_STATE",
+      "id": "REPLACE_WITH_KAITEN_STATE_KV_ID"
+    }
+  ],
+  "secrets": {
+    "required": [
+      "TELEGRAM_BOT_TOKEN",
+      "KAITEN_API_TOKEN",
+      "GOOGLE_SERVICE_ACCOUNT_JSON"
+    ]
+  }
+}

@@ -2,7 +2,10 @@
   "name": "fitness-reminder",
   "private": true,
   "scripts": {
-    "deploy": "wrangler deploy"
+    "deploy": "wrangler deploy",
+    "deploy:fitness": "wrangler deploy --config wrangler.jsonc",
+    "deploy:kaiten": "wrangler deploy --config wrangler.kaiten.jsonc",
+    "dev:kaiten": "wrangler dev --config wrangler.kaiten.jsonc"
   },
   "devDependencies": {
     "wrangler": "^4.68.0"
