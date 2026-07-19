@@ -109,6 +109,7 @@ curl -X POST "https://api.telegram.org/bot$BOT_TOKEN/setChatMenuButton" \
 
 - 3 ustunli Kaiten board: Shooting day, Shooting process, DONE
 - Yangi syomka yaratish
+- Syomka iconlari tayyor preset emas: 3 bo'limdan 3 tagacha iconni mustaqil tanlash mumkin
 - Google Sheetsdan mijozlar ro'yxatini olish va KV cachega saqlash
 - Mijozlar cacheini har 30 daqiqada cron orqali yangilash
 - Mini App ichidan mijozlar bazasini qo'lda refresh qilish

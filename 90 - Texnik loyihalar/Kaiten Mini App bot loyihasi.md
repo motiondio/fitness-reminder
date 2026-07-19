@@ -48,6 +48,7 @@ Oxirgi takomillashtirishlar:
 - Yangi zakaz qo'shilganda riser synth sound va haptic feedback qo'shildi.
 - Fixed compact UI qo'shildi: scale sozlamasisiz, odatdagidan taxminan 7% kichikroq.
 - `Auto`, `Dark`, `White` theme sozlamalari qo'shildi.
+- Icon tanlash tayyor presetlardan multi-selectga o'tkazildi: asosiy ish, yo'nalish va modifierlardan maksimum 3 ta icon tanlanadi.
 - Card boxlar title va Kaiten tag pilllariga mos balandlashadigan qilindi.
 - Card drag paytida board horizontal scroll vaqtincha bloklanadigan qilindi.
 - Yangi syomka formidan yangi mijoz maydonlari olib tashlandi; yangi mijoz alohida menu orqali qo'shiladigan qilindi.
@@ -159,6 +160,9 @@ Modifierlar:
 - `🚚` - Vyezdnoy
 - `🧤` - Rekomendatsiyadan kelgan
 - `🎯` - Target orqali yangi mijoz
+- `🧲` - CTA & Hook
+- `🔺` - Eski zakaz update
+- `➕` - Qolib ketgan card
 
 Kombinatsiya misollari:
 
@@ -166,6 +170,7 @@ Kombinatsiya misollari:
 - `🟢` - Podklyuch + Reels
 - `✂️🟢` - Montaj + Reels
 - `🚚⭐️🔴` - Syomka vyezdnoy + Podcast
+- Har qanday kombinatsiya qo'lda tanlanadi, lekin maksimum 3 ta icon bilan cheklanadi.
 - `🧤🟡` - Podklyuch + YouTube + yangi mijoz
 
 ## Google Sheets mijozlar bazasi

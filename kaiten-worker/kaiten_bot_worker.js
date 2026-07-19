@@ -10,22 +10,42 @@ const CONFIG = {
   clientEndRow: 1000,
 };
 
-const APP_VERSION = "kaiten-miniapp-2026-07-19-15";
+const APP_VERSION = "kaiten-miniapp-2026-07-19-16";
 
-const ICON_PRESETS = [
-  { value: "⭐️", label: "Syomka" },
-  { value: "✂️", label: "Montaj" },
-  { value: "🟢", label: "Podklyuch Reels" },
-  { value: "⭐️🟢", label: "Syomka Reels" },
-  { value: "✂️🟢", label: "Montaj Reels" },
-  { value: "🔴", label: "Podcast" },
-  { value: "🟡", label: "YouTube" },
-  { value: "🚚⭐️🔴", label: "Vyezdnoy Podcast" },
-  { value: "📷", label: "Fotosessiya" },
-  { value: "💻", label: "Vebinar" },
-  { value: "🏛️", label: "Seminar" },
-  { value: "🧤🟡", label: "Rekomendatsiya YouTube" },
-  { value: "🎯🟢", label: "Target Reels" },
+const ICON_GROUPS = [
+  {
+    key: "main",
+    title: "Asosiy ishlar",
+    items: [
+      { id: "main-shooting", value: "⭐️", label: "Syomka" },
+      { id: "main-edit", value: "✂️", label: "Montaj" },
+    ],
+  },
+  {
+    key: "direction",
+    title: "Yo'nalish",
+    items: [
+      { id: "direction-reels", value: "🟢", label: "Reels" },
+      { id: "direction-podcast", value: "🔴", label: "Podcast" },
+      { id: "direction-youtube", value: "🟡", label: "YouTube" },
+      { id: "direction-studio", value: "⭐️", label: "Studio ijarasi" },
+      { id: "direction-photo", value: "📷", label: "Fotosessiya" },
+      { id: "direction-webinar", value: "💻", label: "Vebinar" },
+      { id: "direction-seminar", value: "🏛️", label: "Seminar" },
+    ],
+  },
+  {
+    key: "modifier",
+    title: "Modifierlar",
+    items: [
+      { id: "modifier-away", value: "🚚", label: "Vyezdnoy" },
+      { id: "modifier-recommendation", value: "🧤", label: "Rekomendatsiya" },
+      { id: "modifier-target", value: "🎯", label: "Target" },
+      { id: "modifier-hook", value: "🧲", label: "CTA & Hook" },
+      { id: "modifier-update", value: "🔺", label: "Eski zakaz update" },
+      { id: "modifier-missed", value: "➕", label: "Qolib ketgan card" },
+    ],
+  },
 ];
 
 const ROLE_LEVEL = {
@@ -839,7 +859,7 @@ async function buildState(env, user) {
     config: {
       boardId: boardId(env),
       columns: columnConfig(env),
-      iconPresets: ICON_PRESETS,
+      iconGroups: ICON_GROUPS,
     },
     cards: Array.isArray(cards) ? cards : [],
     clients: Array.isArray(clients) ? clients : [],
@@ -1346,10 +1366,65 @@ function appHtml() {
     }
     .icon-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(8em, 1fr));
+      gap: .667em;
+    }
+    .icon-selection {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: .533em;
+      align-items: center;
+      padding: .667em .8em;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--field);
+    }
+    .icon-preview {
+      min-width: 0;
+      font-size: 1.2em;
+      font-weight: 750;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .icon-count {
+      color: var(--muted);
+      font-weight: 650;
+    }
+    .icon-group {
+      display: grid;
+      gap: .4em;
+    }
+    .icon-group-title {
+      color: var(--muted);
+      font-size: .867em;
+      font-weight: 700;
+    }
+    .icon-options {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(8.8em, 1fr));
       gap: .467em;
     }
-    .icon-choice.active { outline: 2px solid var(--accent); }
+    .icon-choice {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: .467em;
+      align-items: center;
+      min-height: 3.067em;
+      text-align: left;
+      line-height: 1.15;
+    }
+    .icon-choice.active {
+      border-color: var(--accent);
+      background: var(--active);
+      outline: 2px solid rgba(139,211,255,.25);
+    }
+    .icon-choice[disabled] {
+      opacity: .45;
+    }
+    .icon-emoji {
+      font-size: 1.25em;
+      line-height: 1;
+    }
     .time-modal {
       position: fixed;
       inset: 0;
@@ -1658,7 +1733,7 @@ function appHtml() {
       }
 
       var state = null;
-      var selectedIcon = "⭐️";
+      var selectedIconIds = ["main-shooting"];
       var editingCard = null;
       var boardEl = document.getElementById("board");
       var statusEl = document.getElementById("status");
@@ -1816,6 +1891,68 @@ function appHtml() {
         return String(value).padStart(2, "0");
       }
 
+      function iconGroups() {
+        return state && Array.isArray(state.config.iconGroups) ? state.config.iconGroups : [];
+      }
+
+      function allIconItems() {
+        var items = [];
+        iconGroups().forEach(function (group) {
+          (group.items || []).forEach(function (item) {
+            items.push({ groupKey: group.key, groupTitle: group.title, id: item.id, value: item.value, label: item.label });
+          });
+        });
+        return items;
+      }
+
+      function iconItemById(id) {
+        return allIconItems().find(function (item) {
+          return item.id === id;
+        });
+      }
+
+      function selectedIconValue() {
+        return selectedIconIds
+          .map(iconItemById)
+          .filter(Boolean)
+          .map(function (item) { return item.value; })
+          .join("");
+      }
+
+      function parseIconIds(iconString) {
+        var remaining = String(iconString || "").trim();
+        var items = allIconItems().slice().sort(function (left, right) {
+          return String(right.value).length - String(left.value).length;
+        });
+        var result = [];
+        while (remaining && result.length < 3) {
+          var match = items.find(function (item) {
+            return remaining.startsWith(item.value) && !result.includes(item.id);
+          });
+          if (!match) break;
+          result.push(match.id);
+          remaining = remaining.slice(match.value.length).trim();
+        }
+        return result;
+      }
+
+      function toggleIcon(id) {
+        var existingIndex = selectedIconIds.indexOf(id);
+        if (existingIndex >= 0) {
+          selectedIconIds.splice(existingIndex, 1);
+        } else {
+          if (selectedIconIds.length >= 3) {
+            setStatus("Maksimum 3 ta icon tanlash mumkin.", true);
+            haptic("medium");
+            return;
+          }
+          selectedIconIds.push(id);
+        }
+        renderIconGrid();
+        updatePreview();
+        haptic("light");
+      }
+
       function parseCardTitle(title) {
         var clean = String(title || "").trim().replace(/\s+/g, " ");
         var match = clean.match(/^([^0-9]*?)(\\d{1,2})-([A-Za-z'’]+)\\s+(\\d{1,2}:\\d{2}(?:\\s*-\\s*\\d{1,2}:\\d{2})?)\\s+(.+)$/u);
@@ -1874,7 +2011,8 @@ function appHtml() {
         var dateText = monthTitle(document.getElementById("dateInput").value);
         var time = selectedTimeRange();
         var client = document.getElementById("clientInput").value.trim();
-        return [selectedIcon ? selectedIcon + dateText : dateText, time, client].filter(Boolean).join(" ").trim();
+        var icons = selectedIconValue();
+        return [icons ? icons + dateText : dateText, time, client].filter(Boolean).join(" ").trim();
       }
 
       function timeParts(value, fallback) {
@@ -2334,12 +2472,24 @@ function appHtml() {
         window.addEventListener("pointercancel", onDragPointerCancel);
       }
 
+      function renderIconChoice(item) {
+        var active = selectedIconIds.includes(item.id);
+        var disabled = !active && selectedIconIds.length >= 3;
+        return '<button type="button" class="icon-choice ' + (active ? "active" : "") + '" data-icon-id="' + escapeText(item.id) + '" ' + (disabled ? "disabled" : "") + ' aria-pressed="' + (active ? "true" : "false") + '">' +
+          '<span class="icon-emoji">' + escapeText(item.value) + '</span><span>' + escapeText(item.label) + '</span>' +
+        '</button>';
+      }
+
       function renderIconGrid() {
-        document.getElementById("iconGrid").innerHTML = state.config.iconPresets.map(function (preset) {
-          return '<button type="button" class="icon-choice ' + (preset.value === selectedIcon ? "active" : "") + '" data-icon="' + escapeText(preset.value) + '">' +
-            escapeText(preset.value + " " + preset.label) +
-          '</button>';
-        }).join("");
+        var selectedText = selectedIconValue() || "Icon tanlanmagan";
+        document.getElementById("iconGrid").innerHTML =
+          '<div class="icon-selection"><div class="icon-preview">' + escapeText(selectedText) + '</div><div class="icon-count">' + selectedIconIds.length + ' / 3</div></div>' +
+          iconGroups().map(function (group) {
+            return '<section class="icon-group">' +
+              '<div class="icon-group-title">' + escapeText(group.title) + '</div>' +
+              '<div class="icon-options">' + (group.items || []).map(renderIconChoice).join("") + '</div>' +
+            '</section>';
+          }).join("");
       }
 
       function renderAdmin() {
@@ -2408,7 +2558,10 @@ function appHtml() {
         if (editingCard) {
           var parsed = parseCardTitle(editingCard.title);
           var parsedTime = splitTimeRange(parsed.time);
-          selectedIcon = parsed.icon || selectedIcon;
+          selectedIconIds = parseIconIds(parsed.icon);
+          if (!selectedIconIds.length) {
+            selectedIconIds = ["main-shooting"];
+          }
           document.getElementById("titleInput").value = editingCard.title;
           document.getElementById("clientInput").value = parsed.clientName || guessClient(editingCard.title);
           document.getElementById("columnInput").value = editingCard.columnId;
@@ -2420,7 +2573,7 @@ function appHtml() {
           document.getElementById("clientInput").required = false;
         } else {
           document.getElementById("cardForm").reset();
-          selectedIcon = "⭐️";
+          selectedIconIds = ["main-shooting"];
           document.getElementById("dateInput").value = new Date().toISOString().slice(0, 10);
           document.getElementById("columnInput").value = state.config.columns[0].id;
           document.getElementById("titleInput").value = "";
@@ -2469,7 +2622,7 @@ function appHtml() {
           var payload = {
             title: title,
             columnId: columnId,
-            icon: selectedIcon,
+            icon: selectedIconValue(),
             date: document.getElementById("dateInput").value,
             startTime: document.getElementById("startTimeInput").value,
             endTime: document.getElementById("endTimeInput").value,
@@ -2604,11 +2757,9 @@ function appHtml() {
         updatePreview();
       });
       document.getElementById("iconGrid").addEventListener("click", function (event) {
-        var button = event.target.closest("[data-icon]");
+        var button = event.target.closest("[data-icon-id]");
         if (!button) return;
-        selectedIcon = button.getAttribute("data-icon");
-        renderIconGrid();
-        updatePreview();
+        toggleIcon(button.getAttribute("data-icon-id"));
       });
       boardEl.addEventListener("pointerdown", armCardDrag);
       boardEl.addEventListener("click", function (event) {
