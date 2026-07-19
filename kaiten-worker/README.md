@@ -112,7 +112,7 @@ curl -X POST "https://api.telegram.org/bot$BOT_TOKEN/setChatMenuButton" \
 - Google Sheetsdan mijozlar ro'yxatini olish va KV cachega saqlash
 - Mijozlar cacheini har 30 daqiqada cron orqali yangilash
 - Mini App ichidan mijozlar bazasini qo'lda refresh qilish
-- Yangi mijozni alohida menu orqali `MIJOZLAR BAZASI` sheetiga yozish
+- Yangi mijozni alohida menu orqali `MIJOZLAR BAZASI!A6:A1000` ichidagi birinchi bo'sh qatorga yozish
 - Card title edit qilish
 - Syomka yaratishda boshlanish va tugash vaqtini alohida `time` inputlardan tanlash
 - Mavjud card title ichidan icon, sana, vaqt va mijozni ajratib olish
@@ -126,7 +126,7 @@ curl -X POST "https://api.telegram.org/bot$BOT_TOKEN/setChatMenuButton" \
 - Cardlar har bir column ichida Kaiten `sort_order` bo'yicha ko'rsatiladi
 - Card drag paytida board horizontal scroll vaqtincha bloklanadi
 - Yangi syomka formidan yangi mijoz maydonlari olib tashlandi; yangi mijoz alohida menu orqali qo'shiladi
-- Yangi mijoz card yaratilishidan oldin Google Sheetsga yoziladi va KV cache darhol yangilanadi
+- Yangi mijoz avval Google Sheetsdagi `A`, `V`, `W`, `X` ustunlariga yoziladi, keyin KV cache yangilanadi
 - Cardlar Telegram iOS WebView'da balandlik buzilmasligi uchun button emas, clickable article sifatida render qilinadi
 - Kaiten comment qo'shish
 - Owner/admin uchun whitelist panel

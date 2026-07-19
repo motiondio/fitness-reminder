@@ -10,7 +10,7 @@ const CONFIG = {
   clientEndRow: 1000,
 };
 
-const APP_VERSION = "kaiten-miniapp-2026-07-19-12";
+const APP_VERSION = "kaiten-miniapp-2026-07-19-13";
 
 const ICON_PRESETS = [
   { value: "⭐️", label: "Syomka" },
@@ -595,6 +595,10 @@ function sheetName(env) {
   return env.GOOGLE_SHEET_NAME || CONFIG.sheetName;
 }
 
+function a1SheetName(env) {
+  return `'${String(sheetName(env)).replace(/'/g, "''")}'`;
+}
+
 async function googleSheetsRequest(env, path, options = {}) {
   const token = await getGoogleAccessToken(env);
   const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId(env)}${path}`, {
@@ -613,6 +617,12 @@ async function googleSheetsRequest(env, path, options = {}) {
   return data;
 }
 
+async function getClientRows(env) {
+  const range = encodeURIComponent(`${a1SheetName(env)}!A${CONFIG.clientStartRow}:X${CONFIG.clientEndRow}`);
+  const data = await googleSheetsRequest(env, `/values/${range}`);
+  return Array.isArray(data.values) ? data.values : [];
+}
+
 function normalizeClient(row, index) {
   return {
     row: CONFIG.clientStartRow + index,
@@ -627,11 +637,6 @@ function normalizeClientName(value) {
   return String(value || "").trim().replace(/\s+/g, " ").toLowerCase();
 }
 
-function updatedRangeRow(updatedRange) {
-  const match = String(updatedRange || "").match(/![A-Z]+(\d+)/i);
-  return match ? Number(match[1]) : null;
-}
-
 async function getClients(env, force = false) {
   const cacheKey = "clients:cache";
   if (!force) {
@@ -643,9 +648,8 @@ async function getClients(env, force = false) {
       return cached.items;
     }
   }
-  const range = encodeURIComponent(`${sheetName(env)}!A${CONFIG.clientStartRow}:X${CONFIG.clientEndRow}`);
-  const data = await googleSheetsRequest(env, `/values/${range}`);
-  const clients = (data.values || [])
+  const rows = await getClientRows(env);
+  const clients = rows
     .map(normalizeClient)
     .filter((client) => client.name);
   await kvPutJson(env, cacheKey, clients, CLIENT_CACHE_TTL_SECONDS);
@@ -690,36 +694,60 @@ async function appendClient(env, client) {
   if (!fullName) {
     throw new Error("Mijoz ismi kiritilmagan.");
   }
-  const existingClients = await getClients(env).catch(() => []);
+  const rows = await getClientRows(env);
+  const existingClients = rows
+    .map(normalizeClient)
+    .filter((item) => item.name);
   const existingClient = existingClients.find((item) => normalizeClientName(item.name) === normalizeClientName(fullName));
   if (existingClient) {
+    await primeClientCache(env, existingClient);
     return {
       ...existingClient,
       alreadyExists: true,
       updatedRange: null,
+      source: "google_sheets_existing",
     };
   }
-  const row = Array(24).fill("");
-  row[0] = fullName;
-  row[21] = String(client.company || "").trim();
-  row[22] = String(client.phone || "").trim();
-  row[23] = String(client.note || "").trim();
-  const range = encodeURIComponent(`${sheetName(env)}!A:X`);
-  const data = await googleSheetsRequest(
-    env,
-    `/values/${range}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
-    {
-      method: "POST",
-      body: JSON.stringify({ values: [row] }),
+  let targetRow = null;
+  for (let index = 0; index < CONFIG.clientEndRow - CONFIG.clientStartRow + 1; index += 1) {
+    const row = rows[index] || [];
+    if (!String(row[0] || "").trim()) {
+      targetRow = CONFIG.clientStartRow + index;
+      break;
     }
-  );
+  }
+  if (!targetRow) {
+    throw new Error(`MIJOZLAR BAZASI!A${CONFIG.clientStartRow}:A${CONFIG.clientEndRow} oralig'ida bo'sh qator topilmadi.`);
+  }
+
+  const company = String(client.company || "").trim();
+  const phone = String(client.phone || "").trim();
+  const note = String(client.note || "").trim();
+  const sheet = a1SheetName(env);
+  const data = await googleSheetsRequest(env, "/values:batchUpdate", {
+    method: "POST",
+    body: JSON.stringify({
+      valueInputOption: "USER_ENTERED",
+      data: [
+        { range: `${sheet}!A${targetRow}`, values: [[fullName]] },
+        { range: `${sheet}!V${targetRow}`, values: [[company]] },
+        { range: `${sheet}!W${targetRow}`, values: [[phone]] },
+        { range: `${sheet}!X${targetRow}`, values: [[note]] },
+      ],
+    }),
+  });
+  const updatedRange = data.responses?.[0]?.updatedRange || `${sheet}!A${targetRow}:X${targetRow}`;
+  if (!data.totalUpdatedCells && !data.responses?.length) {
+    throw new Error("Google Sheets yozuvni tasdiqlamadi. KV cache yangilanmadi.");
+  }
   const createdClient = {
-    row: updatedRangeRow(data.updates?.updatedRange),
+    row: targetRow,
     name: fullName,
-    company: row[21],
-    phone: row[22],
-    note: row[23],
-    updatedRange: data.updates?.updatedRange,
+    company,
+    phone,
+    note,
+    updatedRange,
+    source: "google_sheets",
   };
   await primeClientCache(env, createdClient);
   return createdClient;
@@ -1134,6 +1162,7 @@ function appHtml() {
       flex: 1 1 auto;
       min-height: 0;
       display: grid;
+      grid-auto-rows: max-content;
       align-content: start;
       gap: .667em;
       padding: .667em;
@@ -1154,7 +1183,7 @@ function appHtml() {
       border-radius: var(--radius);
       padding: .8em;
       text-align: left;
-      min-height: 5.6em;
+      min-height: 0;
       line-height: 1.35;
       overflow: visible;
       box-shadow: 0 10px 24px rgba(0,0,0,.18);
@@ -1183,6 +1212,8 @@ function appHtml() {
       opacity: .94;
     }
     .card-title {
+      display: block;
+      width: 100%;
       white-space: pre-wrap;
       overflow-wrap: anywhere;
       word-break: break-word;
@@ -1193,6 +1224,7 @@ function appHtml() {
       display: flex;
       flex-wrap: wrap;
       gap: .533em;
+      width: 100%;
       margin-top: 0;
       color: var(--muted);
       font-size: .867em;
@@ -1201,11 +1233,12 @@ function appHtml() {
       display: flex;
       flex-wrap: wrap;
       gap: .4em;
+      width: 100%;
       max-width: 100%;
     }
     .staff-pill {
-      display: inline-flex;
-      align-items: center;
+      display: inline-block;
+      min-width: 0;
       max-width: 100%;
       padding: .333em .8em;
       border-radius: 999px;
@@ -1213,6 +1246,7 @@ function appHtml() {
       color: #263238;
       line-height: 1.2;
       overflow-wrap: anywhere;
+      word-break: break-word;
       white-space: normal;
     }
     .staff-pill.c2 { background: #d8c7ff; }
@@ -2150,7 +2184,11 @@ function appHtml() {
           render();
           closeClientModal();
           haptic("success");
-          setStatus("Mijoz bazaga qo'shildi. Yangi syomkada tanlash mumkin.");
+          if (data.client && data.client.alreadyExists) {
+            setStatus("Bu mijoz Google Sheetsda avvaldan bor: row " + (data.client.row || "-") + ".");
+          } else {
+            setStatus("Mijoz Google Sheetsga yozildi: row " + (data.client.row || "-") + ". Yangi syomkada tanlash mumkin.");
+          }
         } catch (error) {
           setStatus(error.message, true);
         }

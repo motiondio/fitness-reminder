@@ -52,7 +52,8 @@ Oxirgi takomillashtirishlar:
 - Card drag paytida board horizontal scroll vaqtincha bloklanadigan qilindi.
 - Yangi syomka formidan yangi mijoz maydonlari olib tashlandi; yangi mijoz alohida menu orqali qo'shiladigan qilindi.
 - Syomka yaratishda boshlanish va tugash vaqtini alohida `time` inputlardan tanlash qo'shildi.
-- Yangi mijoz card yaratilishidan oldin Google Sheetsga yoziladigan va KV cache darhol yangilanadigan qilindi.
+- Yangi mijoz Google Sheetsdagi `MIJOZLAR BAZASI!A6:A1000` ichidan birinchi bo'sh qatorga yoziladigan qilindi.
+- Yangi mijoz avval Google Sheetsdagi `A`, `V`, `W`, `X` ustunlariga yoziladi, keyin KV cache yangilanadi.
 - Cardlar Telegram iOS WebView'da balandlik buzilmasligi uchun button emas, clickable article sifatida render qilinadigan qilindi.
 - Carddagi pastki pilllar mijoz nomidan emas, Kaiten card taglaridan olinadigan qilindi.
 - Cardlar har bir column ichida Kaiten `sort_order` bo'yicha ko'rsatiladigan qilindi.
@@ -196,7 +197,8 @@ Yangi mijoz qo'shish:
    - Sohasi yoki kompaniyasi
    - Qo'shimcha izoh
 3. Saqlanganda `MIJOZLAR BAZASI` sheetidagi keyingi bo'sh qatorga yoziladi.
-4. Yangi mijoz formdagi mijoz tanloviga avtomatik tanlanadi.
+4. Yozuv joyi Google Sheets `A6:A1000` ichidagi birinchi bo'sh A qator bo'ladi.
+5. `A` ustunga ism familiya, `V` ustunga soha/kompaniya, `W` ustunga telefon, `X` ustunga izoh yoziladi.
 
 ## Access control
 
